@@ -1,0 +1,138 @@
+---
+subtitle: "Scoring"
+---
+
+```{r CargaParam}
+fs::path(bsm_path, "Scripts/Carga Parametros.R") |> source()
+```
+
+# `r project_title`
+
+## Introducción
+
+En este cuaderno:
+
+* Calculamos los scores y niveles de riesgo en la muestra proporcionada. 
+
+* Generamos una archivo salida con los scores y niveles de riesgo. 
+
+* Medimos la estabilidad de las distribuciones del score y de las variables del modelo. 
+
+```{r Load_Model_Artifacts}
+"Modelo.zip" |> 
+  with_working_path() |> 
+  unzip(exdir = with_working_path("."))
+
+"sent.sql" |> 
+  with_working_path() |> 
+  read_file() -> sent_sql
+
+"Tab_Coef.Rdat" |> 
+  with_working_path() |> 
+  readRDS() |> 
+  filter(Variable!="(Intercept)") |> 
+  pull(Variable) -> vars_mod
+
+'adic_data.rds' |> 
+  with_working_path() |> 
+  read_rds() -> datos_adic
+
+datos_adic |> pluck(".ids") -> .ids 
+
+c(readRDS("VarsContDiscretizadas.Rdat" |> with_working_path()),               readRDS("VarsFactDiscretizadas.Rdat" |> with_working_path())) -> tab.bins
+
+tab.bins |> 
+  keep(~ .x |> pluck('var_gen') %in% vars_mod) |>  
+  map_chr(~ .x |> pluck('var')) |>  
+  c(vars_mod) -> vars_mod_ext
+
+tab.bins |> 
+  keep(~ .x |> pluck('var_gen') %in% vars_mod) |>  
+  tab_woes_cuts() -> cortes
+
+"tabPerfOrig.Rdat" |> 
+  with_working_path() |> 
+  read_rds() -> tabOrig
+
+"df_con_scores.csv" |> 
+  with_working_path() |> 
+  readr::read_csv(show_col_types = FALSE) -> df.scores
+
+## Carga de tab_niv, tab_seg y tab_rep
+"tab_niv_y_rel.Rdat" |> 
+  with_working_path() |> 
+  load()
+```
+
+En los reportes que siguen, abreviamos la muestra de Desarrollo con 'Orig' y 
+la nueva muestra con 'Nueva'. 
+
+```{r Load_Scores_Orig}
+data_source_delim_path |> 
+  csv_2_score(con_target = TRUE,
+              spec_adic=datos_adic, 
+              mod_sql=sent_sql,                         
+              cols_adic=vars_mod_ext) |> 
+  mutate(.sample = 'Orig') -> df
+```
+
+```{r Load_Scores_Valid}
+data_source_scoring_delim_path |> 
+  csv_2_score(con_target = FALSE,
+              spec_adic=datos_adic, 
+              mod_sql=sent_sql,                         
+              cols_adic=vars_mod_ext) |> 
+  mutate(.sample = 'Nueva') -> df.scores
+```
+
+
+```{r Concat_y_Rangos}
+df.scores |> 
+  bind_rows(df) |> 
+  mutate(Bad = as.factor(target), Good=1-target, .after = 1) |> 
+  range_2_newvar(tab_niv, "score_niv") |> 
+  range_2_newvar(tab_seg, "Segmento") -> df.scores
+```
+
+## Estabilidad de variables
+
+### Estabilidad de distribuciones
+
+```{r res_estab_x_sample}
+df.scores |> 
+  drift_x_vars('.sample', cortes) -> res_estab
+
+res_estab |> estab_tab_dist_2_gt() -> res_estab_tables
+```
+
+### Resumen por Grupos
+
+```{r x_grupos_tab_x_sample}
+res_estab_tables |> pluck("x_grupos_tab")
+```
+
+### Resumen por Grupos y Variables
+
+```{r x_vars_tab_x_sample}
+res_estab_tables |> pluck("x_vars_tab")
+```
+
+## Fin
+
+```{r OoTSave}
+f.name = "Scores.txt" |> with_working_path()
+df.scores |> write_tsv(file = f.name)
+if (!fs::file_exists(f.name)) 
+  error_custom("No se logró grabar el archivo {f.name}")
+# SF, 202501, a pedido de Fede V, se duplica en Reportes. 
+f.name = "Scores.txt" |> with_output_path()
+df.scores |> write_tsv(file = f.name)
+if (!fs::file_exists(f.name)) 
+  error_custom("No se logró grabar el archivo {f.name}")
+```
+
+
+```{r Fin}
+#| output: false
+message(Sys.time(), ": Fin del cuaderno de Scoring")
+```

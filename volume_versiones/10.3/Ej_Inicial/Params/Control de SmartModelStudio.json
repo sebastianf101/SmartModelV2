@@ -1,0 +1,260 @@
+[
+    {
+        "parameter": "nombre_archivo",
+        "value": [
+            {
+                "name": "Muestra_Desarrollo.txt",
+                "size": 34227820,
+                "type": "text/plain",
+                "datapath": "C:\\Users\\FVILLA~1\\AppData\\Local\\Temp\\fileupload-koso7ysg\\tmpi88dbiod\\Muestra_Desarrollo.txt"
+            }
+        ],
+        "Descripción": "Ojo que hay cierta superposición con data_source_delim_path!",
+        "type": "list"
+    },
+    {
+        "parameter": "par_quick",
+        "value": "0",
+        "Descripción": "Cuadernos rápidos?",
+        "type": "numeric"
+    },
+    {
+        "parameter": "project_title",
+        "value": "Nueva Fin",
+        "Descripción": "Título del proyecto",
+        "type": "string"
+    },
+    {
+        "parameter": "data_source_type",
+        "value": "DELIM",
+        "Descripción": "Tipo de la fuente de datos.",
+        "type": "string"
+    },
+    {
+        "parameter": "data_source_delim_path",
+        "value": "./Datos/Muestra_Desarrollo.txt",
+        "Descripción": "Ubicación del archivo de datos de desarrollo en formato plano",
+        "type": "string"
+    },
+    {
+        "parameter": "data_source_delim",
+        "value": "\\t",
+        "Descripción": "Tipo de la fuente de datos.",
+        "type": "string"
+    },
+    {
+        "parameter": "data_source_odbc_dsn",
+        "value": "BCRA",
+        "Descripción": "Nombre del DSN ODBC.",
+        "type": "string"
+    },
+    {
+        "parameter": "keyring_svc_odbc",
+        "value": "BCRA",
+        "Descripción": "Nombre del servicio en keyring por defecto",
+        "type": "string"
+    },
+    {
+        "parameter": "data_source_query",
+        "value": "SELECT variables FROM [esquema].[dbo].[tabla]",
+        "Descripción": "Query proveedor de datos para desarrollo",
+        "type": "string"
+    },
+    {
+        "parameter": "data_source_val_delim_path",
+        "value": "./Datos/Muestra_Validación.txt",
+        "Descripción": "Ubicación del archivo de datos de validación en formato plano",
+        "type": "string"
+    },
+    {
+        "parameter": "data_source_scoring_delim_path",
+        "value": "./Datos/Muestra_Scoring.txt",
+        "Descripción": "Ubicación del archivo de datos para scoring en formato plano",
+        "type": "string"
+    },    
+    {
+        "parameter": "par_split",
+        "value": 0.7,
+        "Descripción": "",
+        "type": "numeric"
+    },
+    {
+        "parameter": "par_ids",
+        "value": "CUIT, Periodo",
+        "Descripción": "",
+        "type": "list"
+    },
+    {
+        "parameter": "par_target",
+        "value": "BAD",
+        "Descripción": "",
+        "type": "string"
+    },
+    {
+        "parameter": "cols_forzadas_a_predictoras",
+        "value": "",
+        "Descripción": "Variables con inclusión forzada en las variables candidatas",
+        "type": "list"
+    },
+    {
+        "parameter": "par_var_grupo",
+        "value": "SCORECARD_BCRA",
+        "Descripción": "Variable que define grupos para evaluar las candidatas en cada uno",
+        "type": "string"
+    },
+    {
+        "parameter": "cols_forzadas_a_cat",
+        "value": "Flag_Atraso_3M, Flag_Atraso_6M, Flag_AtrasoT1_3M, Flag_AtrasoT1_6M, Flag_AtrasoT2_3M, Flag_AtrasoT2_6M, Flag_AtrasoT3_3M, Flag_AtrasoT3_6M, Flag_AtrasoT4_3M, Flag_AtrasoT4_6M",
+        "Descripción": "Variables candidatas numéricas forzadas a categóricas",
+        "type": "list"
+    },
+    {
+        "parameter": "par_weight",
+        "value": "",
+        "type": "string"
+    },
+    {
+        "parameter": "par_cor_show",
+        "value": 0.9,
+        "Descripción": "Límite para mostrar variables por alta correlación",
+        "type": "numeric"
+    },
+    {
+        "parameter": "par_iv",
+        "value": 2,
+        "Descripción": "Límite para descartar variables por bajo IV",
+        "type": "numeric"
+    },
+    {
+        "parameter": "par_conf_level",
+        "value": 0.1,
+        "Descripción": "Límite para descartar variables por test de Chi-Sq en Forward",
+        "type": "numeric"
+    },
+    {
+        "parameter": "cols_nulos_adic",
+        "value": "Cant_Atraso_3M=0, Cant_Atraso_6M=0, Cant_AtrasoT1_3M=0, Cant_AtrasoT1_6M=0, Cant_AtrasoT2_3M=0, Cant_AtrasoT2_6M=0, Cant_AtrasoT3_3M=0, Cant_AtrasoT3_6M=0, Cant_AtrasoT4_3M=0, Cant_AtrasoT4_6M=0",
+        "Descripción": "Lista de variables y códigos de nulos",
+        "type": "list"
+    },
+    {
+        "parameter": "cols_no_predictoras",
+        "value": "",
+        "Descripción": "Variables excluídas de las variables candidatas",
+        "type": "list"
+    },
+    {
+        "parameter": "par_cor",
+        "value": 0.95,
+        "Descripción": "Límite para descartar variables por alta correlación",
+        "type": "numeric"
+    },
+    {
+        "parameter": "par_minpts_nulos",
+        "value": 200,
+        "Descripción": "Nro. de casos mínimos para asignar WoE a nulos",
+        "type": "numeric"
+    },
+    {
+        "parameter": "par_minpts1",
+        "value": 200,
+        "Descripción": "Nro. de casos mínimos de cada bin de segunda etapa",
+        "type": "numeric"
+    },
+    {
+        "parameter": "par_minpts2",
+        "value": 400,
+        "Descripción": "Nro. de casos mínimos de cada bin de segunda etapa",
+        "type": "numeric"
+    },
+    {
+        "parameter": "par_minpts_cat",
+        "value": 150,
+        "Descripción": "Nro. de casos mínimos de cada bin de la discretización de categorícas",
+        "type": "numeric"
+    },
+    {
+        "parameter": "par_discret",
+        "value": 1,
+        "Descripción": "1 discretiza la var. continua en rampas, 0 en escalera",
+        "type": "numeric"
+    },
+    {
+        "parameter": "par_nbins1",
+        "value": 100,
+        "Descripción": "Nro. de bines de primera etapa de la discretización monótona de variables numéricas.",
+        "type": "numeric"
+    },
+    {
+        "parameter": "par_nbins2",
+        "value": 20,
+        "Descripción": "Nro. de bines de segunda etapa de la discretización monótona de variables numéricas.",
+        "type": "numeric"
+    },
+    {
+        "parameter": "par_perf_bins",
+        "value": 20,
+        "Descripción": "Nro. de \"bines\" de los reportes de performance",
+        "type": "numeric"
+    },
+    {
+        "parameter": "par_maxlevels",
+        "value": 50,
+        "Descripción": "Máxima cantidad de valores únicas de las variables categóricas",
+        "type": "numeric"
+    },
+    {
+        "parameter": "par_iv_cuantiles_gb_min",
+        "value": 100,
+        "Descripción": "Nro. de buenos y malos mínimos de cada cuantil para reportes de estabilidad",
+        "type": "numeric"
+    },
+    {
+        "parameter": "par_iv_tot_min",
+        "value": 500,
+        "Descripción": "Nro. de casos mínimos totales para reportes de estabilidad",
+        "type": "numeric"
+    },
+    {
+        "parameter": "par_iv_tot_gb_min",
+        "value": 200,
+        "Descripción": "Nro. de buenos y malos mínimos totales para reportes de estabilidad",
+        "type": "numeric"
+    },
+    {
+        "parameter": "par_vars_segmento",
+        "value": "SCORECARD_BCRA",
+        "Descripción": "Variables necesarias para reportes por Segmento",
+        "type": "string"
+    },
+    {
+        "parameter": "par_rango_niveles",
+        "Descripción": "Rango de la tabla de Niveles de Riesgo",
+        "type": "data.frame",
+        "value": {}
+    },
+    {
+        "parameter": "par_rango_segmentos",
+        "Descripción": "Rango de la tabla de Segmento",
+        "type": "data.frame",
+        "value": {}
+    },
+    {
+        "parameter": "par_rango_reportes",
+        "Descripción": "Rango de la tabla de Reportes",
+        "type": "data.frame",
+        "value": {}
+    },
+    {
+        "parameter": "par_times",
+        "value": 25,
+        "Descripción": "Cantidad de submuestras para bootstrap",
+        "type": "numeric"
+    },
+    {
+        "parameter": "par_cant_reportes",
+        "value": 100,
+        "Descripción": "Máxima cantidad de reportes",
+        "type": "numeric"
+    }
+]

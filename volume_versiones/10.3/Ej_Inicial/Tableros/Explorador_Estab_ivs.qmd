@@ -1,0 +1,155 @@
+---
+subtitle: "Explorador de Variables"
+format: dashboard
+server: shiny
+---
+
+```{r lib_setup}
+#| context: setup
+library(plotly)
+```
+
+```{r CargaParam}
+#| output: false
+#| context: data
+fs::path(bsm_path, "Scripts/Carga Parametros.R") |> source()
+```
+
+
+```{r Load_Model_Artifacts}
+"Modelo.zip" |> 
+  with_working_path() |> 
+  unzip(exdir = with_working_path("."))
+```
+
+```{r IVs}
+#| context: data
+#| 
+# Por ahora no: "Vars Candidatas en Desarrollo por Grupos" = "Estab_ivs_cand_InS_x_grupo.Rdat", 
+estab_ivs_files <- list("Vars Candidatas en Desarrollo" = "Estab_ivs_cand_InS.Rdat",
+                        "Vars Modelo en Desarrollo" = "Estab_ivs_mod_InS.Rdat",
+                        "Vars Modelo en Nueva Muestra" = "Estab_ivs_mod_OoS.Rdat")
+
+estab_ivs_files |> 
+  map(with_working_path) |> 
+  keep(fs::file_exists) -> estab_ivs_available
+
+estab_ivs_available |> 
+  pluck(1) |> 
+  read_rds() -> df_estab_Part
+```
+
+```{r DetallesTablasCont}
+#| context: data
+df_estab_Part |> 
+  pluck('xvars') |>  
+#  filter(tipo == 'Continua') |> 
+#  filter(variable %in% (vars_mod |> stringr::str_remove("_g$"))) |> 
+  mutate(var_name = paste(variable, 'en', valor_grupo)) |> 
+  rename(direction = sentido) |> 
+  select(tipo, variable, valor_grupo, var_name, direction, iv_tab) -> res
+error = (nrow(res)==0)
+if (error) message("Ninguna variable continua integra el modelo! Detalle de tablas no generado!")
+res |> pluck('variable') |> unique() -> variables
+res |> pluck('valor_grupo') |> unique() -> grupos
+```
+
+#  {.sidebar width="250px"}
+
+```{r Inputs}
+selectInput("rep_iv", label = "Elija reporte", choices = names(estab_ivs_available))
+br()
+selectInput('variable', label = 'Variable', choices = variables)
+br()
+textOutput("var_tipo")
+br()
+selectInput('grupo', label = 'Grupo', choices = grupos)
+br()
+actionButton(inputId = "stop_app", label = "Salir", icon = icon("sign-out-alt")) 
+```
+
+# **`r project_title`**
+
+```{r Outputs}
+#| panel: fill
+plotlyOutput('plot_iv')
+
+gt_output("table_iv")
+```
+
+```{r Server}
+#| context: server
+#| message: false
+#| warning: false
+
+df_estab <- reactive({
+  req(input$rep_iv)
+  estab_ivs_available[[input$rep_iv]] |> 
+    read_rds() |> 
+    pluck('xvars') |>  
+    mutate(var_name = paste(variable, 'en', valor_grupo)) |> 
+    rename(direction = sentido) |> 
+    select(tipo, variable, valor_grupo, var_name, direction, iv_tab) -> res
+  error = (nrow(res)==0)
+  # browser() # Ojo que no anda aquí inline {input$rep_iv}
+  if (error) 
+    error_custom("x"="Error! Reporte de IVs de variables no encontrado!", 
+             "i"="No se encontró!", input$rep_iv,  
+             ">"=cli::col_red("Cod 600"))
+  return(res)
+})
+
+observeEvent(df_estab(), {
+  freezeReactiveValue(input, "variable")
+  freezeReactiveValue(input, "grupo")
+    
+  df_estab() |> pluck('variable') |> unique() -> choices 
+  updateSelectInput(inputId = "variable", choices = choices)
+  
+  df_estab() |> pluck('valor_grupo') |> unique() -> choices 
+  updateSelectInput(inputId = "grupo", choices = choices)
+})
+
+selectedData <- reactive({
+  req(input$variable)
+  df_estab() |> 
+    filter(variable == input$variable) 
+})
+
+var_type <- reactive({
+  req(selectedData())
+  selectedData() |> pluck('tipo', 1)  
+})
+
+output$var_tipo <- renderText({ var_type() })
+
+output$plot_iv <- renderPlotly({
+  req(selectedData())
+  if (var_type()=='Continua') {
+    selectedData() |> 
+      iv_grouped_tab_cont_2_plotly()
+  } else {
+    selectedData() |> 
+      iv_grouped_tab_categ_2_plotly()
+  } 
+})
+
+output$table_iv <- render_gt({
+  req(input$variable)
+  req(input$grupo)
+  req(selectedData())
+    if (var_type()=='Continua') {
+      selectedData() |> 
+        filter(valor_grupo == input$grupo) |> 
+        pluck('iv_tab', 1) |> 
+        det_iv_cont_gt(title = paste(input$variable, "en", input$grupo))
+    } else {
+      selectedData() |> 
+        filter(valor_grupo == input$grupo) |> 
+        pluck('iv_tab', 1) |> 
+        det_iv_categ_gt(title = paste(input$variable, "en", input$grupo))
+    }
+})
+
+observeEvent(input$stop_app, { stopApp() })
+```

@@ -1,0 +1,258 @@
+---
+subtitle: "Inspector de variables continuas"
+---
+
+```{r CargaParam}
+#| output: false
+fs::path(bsm_path, "Scripts/Carga Parametros.R") |> source()
+```
+
+# `r project_title`
+
+## Introducción
+
+En este cuaderno vamos a explorar como se construye la discretización de las continuas. Primero seleccionamos la variable de interés, luego vamos a reproducir las tablas de IV que figuran en el Cuaderno de Modelado y como obtener una sentencia sql case-when para cortar la variable transformada con los bines usados en tablas y gráficos.
+
+Por último, exploraremos los pasos previos y terminaremos con las instrucciones necesarias para reproducir el resto de las tablas y gráficos.
+
+Este cuaderno sólo se puede ejecutar luego que termine sin errores el tejido del Cuaderno de Limpieza y Transformación. Este cuaderno usa el entorno y los archivos generados. Asumimos que se usó la opción **rampas,** par_discret = 1 porque es la opción más usada.
+
+Vamos a considerar la siguiente variable de interes. Este es la única celda que necesita editarse. Cambiar por la variable que se desea investigar. Por defecto, asume la variable **SCORE_BCRA_Mean** que está presente en el dataset del ejemplo inicial.
+
+```{r, echo=TRUE}
+var_interes <- 'SCORE_BCRA_Mean'
+```
+
+Las siguientes celdas setean opciones, cargan los datos necesarios y verifican que sean correctos.
+
+```{r setup, include=FALSE, cache=FALSE}
+knitr::opts_chunk$set(echo=T, cache=T, cache.lazy = F, cache.path = report_path_cache, fig.path = report_path_auxil)
+options(digits=3)  
+library(DT)
+library(assertthat)
+
+```
+
+```{r LoadData, echo=TRUE}
+tab.bins <- c(readRDS("VarsContDiscretizadas.Rdat" |> with_working_path()), 
+              readRDS("VarsFactDiscretizadas.Rdat" |> with_working_path()))
+df_cor <- readRDS("Nombres_Correlacionadas.Rdat" |> with_working_path())
+# df_estab_Part <- readRDS(stringr::str_c("Estabilidad_variables_x_Part.Rdat") |> with_working_path())
+# df_estab_grupo <- readRDS(stringr::str_c("Estabilidad_variables_x_",  coalesce(par_var_grupo, 'GRUPO'), ".Rdat") |> with_working_path())
+df <- readRDS("DF_completo.Rdat" |> with_working_path())
+train <- df |> filter(.part == "1_Train") |> select(-ends_with("_g"))
+test  <- df |> filter(.part == "2_Test")
+```
+
+```{r Chequeos, echo=TRUE}
+tab.bins |> 
+  keep(~ pluck(.x, "var") == var_interes) |> 
+  pluck(1) -> tab_var
+res <- bin_monot(train,y="Good",x=var_interes, nbins1=par_nbins1, minpts1=par_minpts1, nbins2=par_nbins2, minpts2=par_minpts2, rampa=par_discret, 
+                 verbose = TRUE) 
+names(tab_var) |> intersect(names(res)) |> setdiff("col_id") -> cols
+assert_that(df %has_name% var_interes, 
+            tab_var %has_name% "tab_iv_stp", 
+            tab_var %has_name% "tab_iv_pwl", 
+            are_equal(res[cols], tab_var[cols]))
+if (par_discret == 1) tab_var$tab_iv_pwl -> ivtable else 
+  tab_var$tab_iv_stp -> ivtable
+```
+
+## Tabla de IV en Modelado
+
+Reproducimos primero la tabla que figura en el cuaderno de Modelado y en el reporte de Detalle.
+
+Tip 1: Usar la barra de desplazamiento horizontal al extremo inferior de la pantalla
+
+Tip 2: Usar los botones para bajar los datos de las tablas al formato deseado.
+
+```{r}
+ivtable |> tab_iv_2_DT()
+```
+
+### Cortes de los bines
+
+Los cortes de los bines los podemos ver en la variable `cut_hi`.
+
+```{r}
+ivtable |> filter(col_agrup!='Total') |> pluck('cut_hi') -> cortes
+cortes
+```
+
+### Cortes en SQL
+
+Con la función `cortes_a_sql()` podemos construir la sentencia sql case-when para obtener los bines de entrenamiento para garantizar la monotonía.
+
+```{r}
+cortes_a_sql(var_interes, paste0(var_interes, '_g'), cortes) |> writeLines()
+```
+
+Luego, podemos agrupar por la variable `bin_*` en una base sql para verificar la monotonía de la tasa de malos o WoE.
+
+## Explicación de discretización de continuas
+
+### Preliminares
+
+En el cuaderno de Limpieza y Transformación está explicado pero resalto aquí que:
+
+Todas las cuentas de la discretización (binning) se hacen en el conjunto de entrenamiento (**Train**).
+
+En los cuadernos empleamos el término intervalo o cuantil pero este último término es un poco confuso porque como veremos los intervalos no son en general del mismo tamaño. Aquí emplearemos los términos intervalos o bins.
+
+El tamaño de cada intervalo o bin se determina en el código así:
+
+`binsz <- max(minpts, floor(length(x)/nbins))`
+
+El cuaderno realiza dos rondas de binning. En la primera ronda usa los parámetros `minpts1` (default 200 ) y `nbins1` (default 100). En la segunda ronda usa los parámetros `minpts2` (default 400 ) y `nbins2` (default 20).
+
+Así, si la muestra de entrenamiento tiene 34k filas y se usan los parámetros por defecto, el tamaño del bin (aproximado y excepto el último) será por lo menos max(200, 34000/100) = 340.
+
+Los bines no comparten valores. Así, si la variable tiene pocos valores únicos esto también engrosa los bines.
+
+Si en el ejemplo, la variable es entera, un nuevo bin empieza en el valor 2 que tiene 300 puntos y el valor 3 también tiene 300 puntos, entonce el nuevo bin será {2,3} con 600 puntos. Bastante más que los 340 mínimos.
+
+### Pasos
+
+El proceso de discretización o binning consta de los siguientes pasos.
+
+1.  Primera ronda de discretización usando `par_nbins1` y `par_minpts1`.
+2.  Ajuste monótono.
+3.  Segunda ronda de discretización usando `par_nbins2` y `par_minpts2`.
+4.  Suavizado por rampas si `par_discret = 1`.
+
+### Primera ronda
+
+En la primera ronda de discretización obtenemos.
+
+```{r}
+res$tab_iv_antes |> tab_iv_2_DT()
+```
+
+En esta primera ronda realizamos un binning normal, no monótono, usando `par_nbins1` (`r par_nbins1`) y `par_minpts1` (`r par_minpts1`).
+
+Los IVs "antes" se calculan contruyendo la tabla de IV de la variable discretizada por este método. Con "antes" nos referimos al IV obtenido antes de aplicar el ajuste monótono.
+
+Luego se realiza el ajuste monótono.
+
+### Ajuste monótono
+
+Los bines se expanden hasta que la transformación logra ser monótona. Se obtiene una primera escalera.
+
+Para establecer el **sentido** ascendente o descendente de esta escalera escalera usamos la correlación de Spearman.
+
+[Wikipedia Source](https://en.wikipedia.org/wiki/Spearman%27s_rank_correlation_coefficient#:~:text=%2C%20is%20a%20nonparametric%20measure%20of,described%20using%20a%20monotonic%20function. "Spearman's rank correlation")
+
+Por ahora se descartan las variables con correlación cero o mayor a 0.95 en valor absoluto. Una posible mejora a futuro es descartar también las correlaciones bajas ya que eso es señal de que la hipótesis de monotonía no se soporta por la muestra de entrenamiento.
+
+Correlación de Spearman: `r res$spear_corr`
+Sentido: `r res$sentido` (1 ascendente, -1 descendente)
+
+Notemos que cuando el ajuste monótono no consigue dividir el intervalo manteniendo la monotonía se producen intervalos muy anchos.
+
+### Segunda ronda
+
+Por último, se realiza una segunda ronda de discretización con los parámetros `par_nbins2` (`r par_nbins2`) y `par_minpts2` (`r par_minpts2`).
+
+En ejemplo inicial de SM, el tamaño del bin es aprox. max(400, 34000/20) = 1700.
+
+En este caso el tamaño puede ser excesivo. Por eso es importante tener en cuenta como influyen los parámetros por defecto.
+
+De esta manera, la escalera pasa a tener menos escalones pero más anchos.
+
+```{r}
+res$tab_iv_stp |> tab_iv_2_DT()
+```
+
+Se preserva la monotonía porque no se parten los escalones (donde los WoE son constantes). Los valores unicos aquí ya son los WoE.
+
+Luego, de nuevo sucede que aún en el caso de tener muchas observaciones se puede terminar con muchos menos de `par_nbins2` escalones. Esta escalera final es la que se llama discretización por escalera. Los reportes de IV siempre van a tener a lo sumo esa cantidad de escalones.
+
+Al final de este proceso la variable resulta bastante más discreta de lo esperado y creo que ayuda a la robustez observada en la práctica.
+
+Por último, si se eligió la opción rampas se suaviza la escalera uniendo los valores medianos de cada escalon por líneas. Obtenemos así la discretización por rampas.
+
+Esta discretización comparte la robustez de la discretización por escalera y le agrega el suavizado.
+
+### Gráfico de las discretizaciones
+
+El resultado de las tablas anteriores lo podemos resumir en un gráfico:
+
+```{r Graf_Discr}
+#| label: 'GraficosIVSCont'
+#| results: 'asis'
+#| column: page-right
+#| fig-width: 12
+res$tab_iv_antes |> 
+  filter(!is.na(cut_median)) |> 
+  ggplot(aes(x=cut_lo, y=BadRate)) +
+  geom_step() + labs(x=res$x) -> layer1
+
+res$tab_iv_stp |> 
+  filter(!is.na(cut_median)) |> 
+  geom_step(mapping=aes(x=cut_lo, y=BadRate), 
+               color="red", linetype="solid", linewidth = 1) -> layer2
+
+layer1 + layer2
+```
+
+El color negro corresponde a la primera ronda y el rojo a la ronda final.
+
+## Tablas publicadas
+
+Para la discretización por escalera calculamos los IV usando los cortes definidos por los escalones.
+
+A partir de la versión 10.1.2 usamos esos mismos cortes para calcular el IV de la discretización por rampas. Lo hacemos para que sean comparables. Verificamos que la opción por rampas no pierde IV en casi todos los casos.
+
+El resultado de la segunda ronda, la escalera, lo podemos consultar en Smart Model en:
+
+Reportes/Detalle agrupación x WoE Continuas (Monotonía).html
+
+```{r}
+tab_var$tab_iv_stp |> det_iv_cont_gt(tab_var$var)
+```
+
+y el resultado de la discretización por rampas lo podemos consultar en:
+
+Detalle agrupación x WoE Continuas (Monotonía más Interpolación Lineal a Trozos).html
+
+```{r}
+tab_var$tab_iv_pwl |> det_iv_cont_gt(tab_var$var)
+```
+
+En estas tablas de IV agregamos las siguientes columnas:
+
+-   orden
+
+    Este es el orden natural de los bines. Se usa luego esta columna en el cálculo del % de Bines ordenados para las tablas de Estabilidad.
+
+-   Rango (WoE), Min (WoE) y Max (WoE)
+
+    La discretización trasnforma una variable a valores en la escala WoE. En la columna Rango observamos el bin de los valores antes de transformar y en Rango (WoE) luego de transformados.\
+    Esta misma correspondencia se dá entre las columas Min y Max con Min (WoE) y Max (WoE).
+
+    Aquí es donde podemos ver los diferentes valores de transformación entre la versión escalera y la versión rampas.
+
+También agregamos la fila con el bin de los nulos. Fijamos su orden según su WoE observado en la discretización (en Train). Si bin de los nulos no alcanza la cantidad `par_iv_cuantiles_gb_min` (`r par_iv_cuantiles_gb_min`) se asigna por defecto el WoE cero, que corresponde al valor del WoE (relativo) de toda la muestra. El valor por defecto de este parámetro a partir de la versión 10.1.2 subió de **15** a **100**.
+
+## Tablas de Estabilidad
+
+### Cálculo de % de Bines Ordenados
+
+A la explicación dada en la sección "Estabilidad de variables candidatas" del cuaderno de Limpieza y Transformación, detallamos como se calcula el % de Bines Ordenados:
+
+1.  Se calculan las tablas de IV con los cortes de las tablas publicadas en la sección anterior en el grupo en análisis.
+
+2.  Se consideran sólo los Bines con `par_iv_cuantiles_gb_min` (`r par_iv_cuantiles_gb_min`) puntos y se calculan los % Bines c/ datos. Naturalmente en un grupo en particular podemos tener muchos menos puntos que en la muestra de entrenamiento. El valor por defecto de este parámetro a partir de la versión 10.1.2 subió de **15** a **100**.
+
+3.  Se ordenan los Bines según la tasa de malos **observada** y el **sentido** de la variable.
+
+4.  Se comparan la columa orden (ver tablas publicadas) antes y después del reordenamiento.
+
+5.  Se calculan los % de Bines Ordenados como la cantidad de bines donde la columna orden no cambió.
+
+En el siguiente ejemplo, suponemos que quedaron solo 5 bines con datos. El % de Bines Ordenados, resulta en 3/5 = 60%.
+
+```{r}
+tibble(orden_orig=c(3,5,6,10,11), reorden=c(3,5,6,11,10), mismo_puesto=(orden_orig==reorden))
+```
