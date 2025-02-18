@@ -1,0 +1,575 @@
+--- 
+title: "Guía de Usuario" 
+format: html 
+number-sections: true
+---
+
+## Modelado
+
+### Construcción de las muestras
+
+Al inicio se lee el dataset de la locación `data_source_delim_path` con el delimitador `data_source_delim`. La mala asignación de este parámetro puede ocasionar que cada línea se lea como una única columna produciendo el error correspondiente.
+
+Luego, se divide la muestra entre las *particiones* `1_Train`, `2_Test` y opcionalmente `3_Test` de acuerdo al parámetro `par_split`. Por ejemplo, con el valor 0.7 se asignan al azar 70% de las filas a la muestra `1_Train` y el 30% restante a `2_Test`.\
+Para otros usos consultar @sec-part-datos.
+
+Si se cuentan con más de 100 columnas, para un modelado rápido se recomienda no entrenar con más de 10000 observaciones.
+
+### Columnas Especiales
+
+Con los parámetros `par_ids`, `par_target`, `par_var_grupo`, `par_weight` se identifican las columnas identificatorias, objetivo, de agrupamiento y de frecuencia o pesos, respectivamente.
+
+Con los parámetros `cols_no_predictoras`, `cols_forzadas_a_cat`, `cols_forzadas_a_predictoras` y `cols_nulos_adic` se especifican las listas de columnas excluídas de las candidatas, las candidatas numéricas forzadas a categóricas y la lista de variables con los valores que deben convertirse a nulos, respectivamente.
+
+Los nombres de las columnas deben ser nombres de variables válidos.  Esto es, las variables candidatas deben:
+
+* Comenzar con una letra o punto seguido de una letra. 
+* Contener sólo letras, dígitos, puntos y guiones bajos "_". 
+* No ser palabras reservadas del lenguaje. 
+
+Así `CANT_SITU_3-5_ULT_24` *no* es un nombre válido pero `CANT_SITU_3a5_ULT_24` ó `Cant.situ.3_5.Ult.24` *sí* lo son. 
+
+Consultar el detalle de cada uno de estos parámetros en @sec-cols-espec.
+
+### Distribución del Objetivo
+
+Se sugiere usar los cuadros de esta sección para controlar la partición y la asignación de pesos.
+
+### Construcción, Selección y Transformación de Variables
+
+#### Selección por criterio univariado {#sec-sel-univ}
+
+Se identifican las variables candidatas. Se las divide entre continuas y categóricas y de descartan las de valor constante en la muestra de entrenamiento o test.
+
+#### Binning
+
+Se discretizan las variables según el WoE y se descartan del grupo de variables candidatas aquellas con IV menor a `par_iv` ó con intervalos ("bines") que no cumplen los requisitos especificados. Ver @sec-sel-var.
+
+Para una rápida selección se recomienda una muestra de entrenamiento de hasta 10K filas y 100 candidatas. Luego de la etapa de selección es deseable contar con menos de 30 variables. Se puede elevar el parámetro `par_iv` para ello. No se sugiere modificar los *otros* parámetros sin conocimiento experto.
+
+Se recomienda pinchar en el acceso `Ver detalle`. Es una buena práctica revisar las variables continuas descartadas por insuficientes bines.
+
+Para revisar las discretización obtenida se recomienda usar el Explorador de Variables @sec-expl-variables.
+
+#### Variables ordenadas por IV
+
+La tabla muestra hasta 100 variables. Las variables que obtuvieron un IV muy alto, mayor a 30 en general, pueden indicar el problema de "[Data Leakage](https://www.ibm.com/think/topics/data-leakage-machine-learning)".
+
+#### Variables con pérdida de IV
+
+Se espera que la discretización por WoE disminuya el sesgo a la muestra de entrenamiento. Por otro lado conlleva una pérdida de IV.
+
+Se calcula esta pérdida al comparar el IV que se obtiene con una discretización que maximiza el IV -y probablemente sobreajuste-, `IV antes` y el IV construído en la sección de "Binning", `IV después`.
+
+Así la pérdida absoluta se calcula como `IV  antes - IV después` y la relativa como `1 - IV después / IV antes`%.
+
+En las tablas siguientes se muestran las pérdidas a partir de un 5% pero en general, un **10%** y hasta un **20%** de pérdida se puede considerar aceptable.
+
+Si aparecen pérdidas altas hay que analizar en el caso de las continuas si la imposición de monotonía no fue apropiada.
+
+Por ejemplo, una variable como la antigüedad puede tener una relación con la probabilidad de mora decreciente hasta un punto en donde la relación pasa a ser creciente. En este caso, la monotonía es inapropiada y la pérdida de IV nos sirve para detectar este fenómeno.
+
+Por otro lado, hay que tener en cuenta, como pasa con frecuencia con las categóricas, que la ausencia de pérdida puede indicar sobreajuste a la muestra de entrenamiento. En este caso se puede revisar la agrupación y aumentar el parámetro `par_minpts_cat`.
+
+##### Categóricas
+
+Para las categóricas `IV antes` se calcula cómo el IV obtenido al agrupar por cada valor único de la variable, sin importar que en ese grupo haya menos de `par_minpts_cat` casos. El `IV después` se obtiene simplemente agrupando los valores no nulos con menos de `par_minpts_cat` casos en uno solo grupo llamado "\_Otros".
+
+Se muestran las variables Categóricas que antes de discretizar tenían un IV mayor a `par_iv` y que sufrieron una pérdida absoluta mayor a **1** y una relativa mayor al **5%**.
+
+##### Continuas
+
+Para las variables Continuas se discretiza respetando la restricción de monotonía. Se realiza de dos maneras según el parámetro `par_discret`. La primera,"escalera", impone que la variable sea monótona y constante a trozos lo cual resulta en un gráfico de la transformación parecido a una escalera (ascendente o descendente). La segunda, "rampas", impone que la variable sea monótona y lineal a trozos lo cual resulta en un gráfico de la transformación parecido a una linea quebrada ascendente o descendente formada por un conjunto de trozos o "rampas".
+
+Aquí el `IV_antes` se calcula cómo el IV obtenido al tratar a la variable con un "binning" no monótono clásico, en donde sólo se exige que cada bin o intervalo tengan al menos `par_minpts1` casos.
+
+Las dos últimas columnas comparan el `IV_antes` con los "IV_escalera" y "IV_rampas" respectivamente.
+
+Se muestran las variables que tuvieron una pérdida relativa del **5%** y que además `IV_antes` fuera mayor a `par_iv`%.
+
+#### Correlaciones altas {#sec-cor-altas}
+
+En el último paso de selección de variables se eliminan las variables que tengan una correlación de [Pearson](https://en.wikipedia.org/wiki/Pearson_correlation_coefficient) cuyo valor absoluto sea mayor o igual a **`par_cor`** con otra variable predictora que la supere en IV. Así, se selecciona sólo una variable de cada grupo de variables altamente correlacionadas entre sí.
+
+#### Estabilidad de variables candidatas.
+
+En esta sección se evalúa la estabilidad de las variables *entre* grupos por *dos* métodos.
+
+Los grupos se definen por el parámetro `par_var_grupo` (@sec-cols-espec).
+
+En el *primer* método se compara la distribución de referencia, es decir, la distribución de los bines en la muestra de entrenamiento, con la distribución de los los bines en el grupo a comparar. Para la comparación se usan dos medidas:
+
+-   PSI, -Population Stability Index- [Ref PSI](https://en.wikipedia.org/wiki/Kullback%E2%80%93Leibler_divergence#Symmetrised_divergence) - Norma L-infinito [Ref TF](https://www.tensorflow.org/tfx/guide/tfdv#drift_detection).
+
+En el *segundo* método se calculan los IVs obtenidos por la variable en cada grupo.
+
+Este último método requiere contar con la información del objetivo mientras que el primero no.
+
+Además el método por IV es más sensible a los cambios de distribución y está más directamente relacionado al impacto en el modelo.
+
+##### Estabilidad de IVs
+
+En la situación ideal, no hay sobreajuste, los grupos son suficientemente grandes y la variable de agrupamiento es independiente del objetivo se espera que los IVs calculados en cada grupo sean similares.
+
+En cambio, si los grupos no son suficientemente grandes los IVs pueden ser inestables simplemente porque los "bines" de las tablas de IV subyacentes son muy pequeños.
+
+Para controlar este fenómeno en cada IV se calculan la cantidad de cuantiles con al menos `par_iv_cuantiles_gb_min` - buenos y malos. Sólo si se cuenta con la mayoría de los "bines" en esta situación podemos confiar en el IV reportado.
+
+Así se calcula la medida "% Bines c/ datos" cómo el porcentaje de bines con suficientes datos comparado con el total de bines en cada tabla de IV.
+
+También se detecta si la cantidad total de casos de cada grupo y la cantidad total de buenos y malos es suficiente.
+
+Esta información se muestra en dos tablas. Una de grupos y otra de variables. En la primera se reportan estadísticas por grupo. Aquí se puede verificar si existen grupos muy pequeños con insuficientes casos en general o bueno y malos en particular.
+
+En la segunda tabla, de variables, se muestran los IVs de los primeros 10 grupos ordenados según el tamaño de cada uno. Se distinguen en naranja aquellos grupos que o bien no alcanzan los `par_iv_tot_min` - casos o bien no cuentan con al menos `par_iv_tot_gb_min` - buenos o malos.
+
+Cómo el IV no distingue el orden entre "bines", se incluye una medida adicional a "% Bines c/ datos" que se llama "% Ordenado". Se calcula como el porcentaje de bines que mantienen su puesto al reordenar por tasa de malos en la tabla de IV subyacente.
+
+#### Coeficientes del modelo y Resumen de Pasos
+
+Columnas de la tablas:
+
+-   **`Variable`**: Nombre de la variable transformada por WoE e integrante del modelo.
+
+-   **`Paso`**: Primer paso en donde apareció la variable en el método Forward K.
+
+-   **`IV`**: Information Value obtenido por la variable transformada en la muestra de entrenamiento. Al ser una medida univariada independiente del modelo, puede tener un valor alto y una importancia dentro del modelo baja (Ver coef. Beta).
+
+-   **`Direccion`**: La transformación de una variable categórica al no tener una dirección definida reciben la flecha derecha. Para las variables continuas, la transformación monótona ascendente recibe la flecha arriba mientras que la descendente recibe la flecha abajo.
+
+-   **`Coeficiente Beta`**: Coeficiente de obtenido en el ultimo paso de la regresión logística. Al tener las variables transformadas por WoE, se puede interpretar como una medida de importancia de la variable relativa al resto de las variables del modelo.
+
+-   **`95% CI`**: Intervalo de confianza al 95% de los coeficientes del modelo. Si estos son muy amplios, incluyen extremos de distinto signos, indica poca certeza en el valor del coeficiente Beta.
+
+-   **`Pr(>Chi) & LRT`**: Test de máxima verosimilitud y p-valor obtenidos por la variable en el paso indicado. En cada paso de la etapa Forward se selecciona la variable con mayor LRT o menor p-valor. Mide que tan significante fue incorporar la variable al modelo en el paso indicado. Naturalmente desciende con los números de pasos. Tradicionalmente se considera una variable no significativa cuando su p-valor supera 0.05.
+
+-   **`Variables competidoras`**: Se muestran las variables con mayor LRT o menor p-valor luego de la variable seleccionada en el paso indicado.
+
+##### Recomendaciones:
+
+Si se detectan p-valores no significativos o intervalos de confianza muy amplios se recomienda:
+
+-   Elevar **`par_split`**: Al aumentar el tamaño de la muestra de entrenamiento se disminuye la varianza en la estimación de los coeficientes. Sin embargo esto tiene el costo de elevar su sesgo.
+
+-   Establecer criterios más estrictos de selección de variables. Ver sección @sec-sel-var. No obstante, al descartar más variables disminuirá la performance del modelo.
+
+#### Gráfico de evolución de los coeficientes por iteracción {#sec-evol-coef}
+
+La evolución de los coeficientes permite observar la influencia entre las variables. Si todas las variables fueran independientes, se observarían líneas aproximadamente paralelas con valores cercanos a 1. En la situación opuesta, tendríamos multicolinearidad y se observarían lineas cruzadas y valores lejanos a 1. En este caso se puede explorar quitar alguna/s variable/s que causan el fenómeno.
+
+#### Presencia de variables con correlación mayor a `par_cor_show`
+
+Debido al proceso descrito en @sec-cor-altas ninguna variable integrante del modelo tiene una correlación con otra mayor a `par_cor`. No obstante pueden existir variables con correlaciones mayores a `par_cor_show`.
+
+En este caso se debe considerar la exclusión de alguno de los integrantes de los pares. La permanencia de estos pares puede originar inestabilidad en la determinación de los coeficientes, y en consecuencia, inestabilidad en el modelo y empeorar la comprensión del modelo.
+
+Notar que de esta manera se controla con colinealidad de a pares de variables pero no la presencia de multicolinealidad. Para ello ver @sec-evol-coef.
+
+### Performance {#sec-perf}
+
+Para una explicación de las curvas ROC y de Ganancias ver [ROC](https://en.wikipedia.org/wiki/Receiver_operating_characteristic) y [Gain](http://mlwiki.org/index.php/Cumulative_Gain_Chart).
+
+Tener en cuenta que evaluamos las observaciones pesadas de acuerdo al parámetro **`par_weight`**.
+
+Se recomienda controlar:
+
+-   La diferencia de performance entre la muestra de entrenamiento y las otras. Cuanto mayor es la diferencia mayor será el riesgo de sobreajuste.
+
+-   Valores de Gini y otras medidas. Valores muy altos señalan problemas de sobreajuste ó "data leakage" \[Leakage\](https://en.wikipedia.org/wiki/Leakage\_(machine_learning). Valores bajos de performance señalan poca utilidad del modelo.
+
+-   Estabilidad de los puntos de corte. Idealmente, la tasa de "malos" debe ser decreciente en relación al cuantil. Para que esta tasa sea válida los cuantiles deben tener suficientes observaciones. Ver @sec-det-perf.
+
+#### Resumen de Performance
+
+Para una explicación de las medidas KS, AUC y Gini ver [Gini](https://ginimachine.com/academia-post/ml-model-performance-evaluation).
+
+#### Detalle de Performance {#sec-det-perf}
+
+Los cuantiles de las tablas de performance se determinan partiendo la muestra de entrenamiento en **`par_perf_bins`** cuantiles. Se recomiendan cuantiles con por lo menos 100 observaciones de cada clase. Para muestras pequeñas se recomienda 10 ó 5 cuantiles.
+
+### Verificación de implementación SQL
+
+#### Tamaños de muestra iguales
+
+Se espera que los tamaños de las muestras sean iguales.
+
+#### Máxima diferencia entre Scores
+
+Una diferencia mayor a 1 indica que hubo un problema en la traducción a SQL. Posibles causas son diferencias en los tipos de datos o en el tratamiento de nulos.
+
+#### Niveles de Riesgo
+
+Ver @sec-niv-riesgo.
+
+#### Variable Segmento
+
+Ver @sec-var-segmento.
+
+### Variables excluídas por cambio a coeficiente negativo.
+
+En el método Forward K se excluye en cada paso la primera variable con coeficiente negativo si esto sucede. Se listan aquí estas variables. Es esperable que la variable excluída tenga una alta correlación con un grupo de variables. Si esto no sucede se debe investigar más.
+
+### Orden de variables según estabilidad del IV por Grupos
+
+Aquí se muestran los IVs de cada una de las variables que integran el modelo para los grupos definidos por `par_var_grupo` en toda la muestra de desarrollo (entrenamiento y test).
+
+Para interpretar las columnas `%Bines c/datos` y `% Ordenado` ver @sec-estab-ivs.
+
+Las variables que encabezan la tabla merecen atención porque pueden causar inestabilidad en el modelo o baja performance en grupos de interés.
+
+## Niveles de Score
+
+### Estabilidad de variables
+
+Ver @sec-estab-var.
+
+## Validación en Desarrollo
+
+### Alineación de Niveles de Score
+
+#### Niveles de Riesgo {#sec-niv-riesgo}
+
+Se establecen los niveles de riesgo según el parámetro **`par_rango_niveles`**. Si este no fue declarado se contruyen los niveles basados en cuantiles y se informa al usuario.
+
+Los niveles se declaran con un grupo de reglas arbitrarias. Las reglas se crean a partir de condiciones básicas `variable [<, >, <=, >=, ==, !=] valor` que se pueden componer con los operadores, `&, |, !` - AND, OR, NOT, respectivamente. Por ejemplo: `score > 950 & Antiguedad > 24`.
+
+Se puede indicar la tasa de malos máxima esperada para cada nivel.\
+Esta debe ser creciente según el orden del nivel de riesgo. La tasa de malos mínima está dada por la tasa máxima del nivel anterior. Se define que la tasa de malos observada está **alineada** cuando se encuentra entre la tasa mínima y la tasa máxima esperadas. Si todos los niveles están alineados se valida la alineación de los niveles de Riesgo en la muestra correspondiente.
+
+#### Variable Segmento {#sec-var-segmento}
+
+Para los reportes de estabilidad se usa la variable Segmento.\
+Esta se define según el parámetro `par_rango_segmentos`. Si este no fue declarado se usa un segmento único para toda la muestra de Desarrollo.
+
+#### Reportes especificados
+
+Se genera un reporte por cada combinación de valores de las variables especificadas en `par_rango_reportes` y `par_rango_segmentos` hasta una cantidad máxima de `par_cant_reportes`.
+
+#### Validación por el método Bootstrap {#sec-bootstrap}
+
+Otra manera de verificar la alineación en cada nivel es la siguiente:
+
+Se aplica el método bootstrap para calcular intervalos de confianza empíricos de la tasa de malos y el índice KS.
+
+En detalle, se toman `par_times:`, submuestras con reemplazo. Observamos las tasas de malos y el KS. La columna `% veces Alineado` cuenta la proporción de tablas alineadas de las submuestras. Si es menor al 95% la subrayamos en rojo. Luego calculamos los cuantiles 2.5% y 97.5% de la distribución de los KS para establecer un clásico intervalo de confianza del 95%.
+
+### IVs {#sec-det-ivs}
+
+#### Continuas
+
+El método de transformación monónotona garantiza la monotonía de la tasa de malos y el WoE sólo en la muestra de entrenamiento. La transformación de la variable será estable si se preserva la monotonía en otras muestras.
+
+En el caso de los gráficos se espera las líneas sigan el sentido de la línea verde (entrenamiento). También se espera que no haya cambios bruscos en las barras.
+
+También se recomienda controlar que no haya barras o bines muy grandes. Esto puede indicar que la imposición de monotonía fue forzada. En este caso se puede explorar convertir la variable a categórica o agrupar los bines de forma manual.
+
+#### Gráficos de IVs
+
+-   Las barras están en escala del eje y izquierdo. Arriba de cada barra se imprime **% Obs**: % de observaciones del bin.
+
+-   Las líneas están en escala del eje y derecho **WoE**.
+
+#### Tablas de IVs {#sec-ref-tabla-iv}
+
+Columnas:
+
+-   `Rango`: Rango de valores del bin en la variable original. Los corchetes indican la inclusión del extremo, mientras que los paréntesis su exclusión del bin.
+
+-   `orden`: Orden del bin.
+
+-   `Rango (WoE)`: Rango de valores del bin en la variable transformada por WoE. No confundir con el WoE observado del bin.
+
+-   `Min (WoE)`: Valor mínimo de la variable transformada en el bin.
+
+-   `Max (WoE)`: Valor máximo de la variable transformada en el bin.
+
+-   `Min`: Valor mínimo de la variable original en el bin.
+
+-   `Mediana`: Valor mínimo de la variable original en el bin.
+
+-   `Max`: Valor máximo de la variable original en el bin.
+
+-   `# Obs`: Número de observaciones del bin.
+
+-   `# Buenos`: Número de observaciones del bin "buenas", -donde la variable Bad = 0-.
+
+-   `# Malos`: Número de observaciones del bin "malas", donde la variable Bad = 1.
+
+-   `% Obs:` % de observaciones del bin.
+
+-   `% Buenos`: % de observaciones del bin "buenas" con respecto al total de "Buenos".
+
+-   `% Malos`: % de observaciones del bin "buenas" con respecto al total de "Malos".
+
+-   `BadRate`: % `# Malos`/`# Obs`. Tasa de Malos en el bin.
+
+-   `WoE`: Weight of Evidence normalizado definido como log(`# Buenos`/`# Malos`) - log(`# Total Buenos`/`# Total Malos`). El WoE normalizado de la muestra es cero.
+
+-   `IV`: Information Value definido como `WoE`\* (`% Buenos` - `% Malos`).
+
+#### Categóricas
+
+Recomendaciones:
+
+-   Controlar que las barras y líneas de distintas muestras (colores) sean similares.
+
+-   Si una barra es muy amplia, explorar la posibilidad de partir el valor de la variable original.
+
+#### Gráficos de IVs
+
+-   Las barras están en escala del eje y izquierdo. Arriba de cada barra se imprime **% Obs**: % de observaciones del bin.
+
+-   Las líneas están en escala del eje y derecho **WoE**.
+
+#### Tablas de IVs
+
+Columnas:
+
+-   Grupo: Id del bin.
+
+-   `# Obs`: Número de observaciones del bin.
+
+-   `# Buenos`: Número de observaciones del bin "buenas", -donde la variable Bad = 0-.
+
+-   `# Malos`: Número de observaciones del bin "malas", donde la variable Bad = 1.
+
+-   `% Obs`: % de observaciones del bin.
+
+-   `% Buenos`: % de observaciones del bin "buenas" con respecto al total de "Buenos".
+
+-   `% Malos`: % de observaciones del bin "buenas" con respecto al total de "Malos".
+
+-   `BadRate`: % `# Malos`/`# Obs`. Tasa de Malos en el bin.
+
+-   `WoE`: Si WoE_anulado es igual a cero, sino es igual a WoE_anulado.
+
+-   `IV`: Information Value definido como `WoE`\* (`% Buenos` - `% Malos`).
+
+-   `WoE_datos`: Weight of Evidence normalizado definido como log(`# Buenos`/`# Malos`) - log(`# Total Buenos`/`# Total Malos`). El WoE normalizado de la muestra es cero.
+
+-   `WoE_anulado`: Indica si el WoE del bin "\_Otros" ó "\_Missings" fue anulado debido a que tuvo menos de `par_minpts_cat` observaciones.
+
+-   `Integrantes`: Lista de valores de la variable original que integran el bin.
+
+### Estabilidad de variables {#sec-estab-var}
+
+En esta sección evaluaremos la estabilidad de las variables entre los grupos 'Orig' y 'Val' por dos métodos.
+
+En el primer método evaluamos la estabilidad de la distribuciones de las variables comparando los bines -distribución empírica- de la variable en la muestra de Desarrollo `Orig` y los bines en la nueva Muestra. Llamamos a los bines obtenidos en la muestra de Desarrollo la distribución de referencia.
+
+Usamos dos medidas: la clásica medida PSI, -Population Stability Index- [Ref PSI](https://en.wikipedia.org/wiki/Kullback%E2%80%93Leibler_divergence#Symmetrised_divergence) y la norma L-infinito, que es la usada en Tensorflow: [Ref TF](https://www.tensorflow.org/tfx/guide/tfdv#drift_detection).
+
+En el segundo método evaluamos la estabilidad de los IVs obtenidos por la variable en cada grupo. Notamos que este método requiere contar con la información del objetivo mientras que el primero no. También notamos que el método por IV es más sensible a los cambios de distribución y está más directamente relacionado al impacto en el modelo.
+
+#### Estabilidad de IVs {#sec-estab-ivs}
+
+Se puede analizar la estabilidad de las variables observando cómo varía su IV entre distintos grupos. Si la variable es estable, se espera que los IVs calculados en cada grupo sean similares.
+
+Para que esta medida sea válida, se requiere que los bines sobre los que se calculan los IVs tengan suficientes observaciones de las dos clases.
+
+Por eso, para controlar este fenómeno en cada IV calculado, se cuenta la cantidad de cuantiles con al menos `par_iv_cuantiles_gb_min` tanto para buenos como para malos. Solo si se tiene la mayoría de los "bines" en esta situación se puede confiar en el IV reportado.
+
+De esta manera, se calcula la medida "% Bines c/ datos" como el porcentaje de bines con suficientes datos comparado con el total de bines en cada tabla de IV. También se detecta si la cantidad total de casos de cada grupo y la cantidad total de buenos y malos es suficiente.
+
+Esta información se muestra en dos tablas: una de grupos y otra de variables. En la primera se reportan estadísticas por grupo. Aquí se puede verificar si existen grupos muy pequeños con insuficientes casos en general o buenos y malos en particular.
+
+En la segunda tabla, de variables, se muestran los IVs de los primeros 10 grupos ordenados según el tamaño de cada uno. Se colorean en naranja aquellos grupos que o bien no alcanzan los `par_iv_tot_min` casos o bien no cuentan con al menos `par_iv_tot_gb_min` buenos o malos.
+
+Como el IV no distingue el orden entre "bines", se incluye una medida adicional a "% Bines c/ datos" que se llama "% Ordenado". Surge al comparar la tasa de malos observada con la tasa de malos ideal. Los bines que mantienen su puesto al *reordenar* por tasa de malos en la tabla de IV subyacente cuentan en el numerador de este porcentaje.
+
+## Validacion en Nueva Muestra
+
+### Introducción
+
+### Alineación de Niveles de Score
+
+#### Distribución del Objetivo
+
+Se sugiere usar los cuadros de esta sección para controlar la partición y la asignación de pesos.
+
+Si la cantidad de observaciones "malas" o "buenas" no superan ciertos umbrales se advierte al usuario. En este caso se sugiere ampliar la muestra.
+
+#### Niveles de Riesgo
+
+Ver @sec-niv-riesgo.
+
+#### Variable Segmento
+
+Ver @sec-var-segmento.
+
+### Estabilidad de variables
+
+Ver @sec-estab-var.
+
+### Detalle IVs
+
+Ver @sec-det-ivs.
+
+### Performance
+
+Ver @sec-perf.
+
+## Explorador de Variables {#sec-expl-variables}
+
+Con esta herramienta se puede explorar se discretizaron las variables en bines y que WoE e IV obtuvieron en diferentes muestras. 
+
+En el panel izquierdo se puede elegir el conjunto de variables y la muestra sobre la que se evaluó: 
+
+* Si se eligió el modo rápido sólo se contarán con las evaluaciones de las variables integrantes del modelo.  Sino, se contará además con todas las variables candidatas.  
+
+* Si se ejecutó la validación en una nueva muestra se dispondrá de la evaluación de las variables del modelo en esa muestra. 
+
+En este panel se puede elegir la variable a examinar y el grupo - `Train, Test, Val`-. Así se muestra la tabla de IV del grupo seleccionado. 
+
+En el panel principal se presentan los gráficos y tablas de IV. Consultar @sec-det-ivs para más detalle.  
+
+
+
+## Parámetros
+
+### Columnas Especiales {#sec-cols-espec}
+
+-   **`par_ids`**: Columna/s que identifica/n de forma única cada fila. Si se deja vacío, el parámetro crea una variable 'id' que contiene el número de fila.
+
+-   **`par_target`**: Columna con el objetivo del Modelo. Sólo se admiten valores 0 o 1. En base a esta variable se construyen las variables Bad y Good = 1 - Bad.
+
+-   **`par_weight`**: Columna que indica la frecuencia de la observación, utilizada como ponderación durante el entrenamiento del modelo. Si se deja en blanco, cada fila recibe una ponderación por defecto de 1. Los pesos deben ser no negativos y al menos uno debe ser positivo. Se recomienda usar pesos enteros. Cuando se cuentan con pocos casos de la clase minoritaria, es útil usar la técnica de `upweighting` [Ref UpW](https://developers.google.com/machine-learning/crash-course/overfitting/imbalanced-datasets).\
+    En los reportes se distingue esta columna con la letra `W`.
+
+-   **`par_var_grupo`**: Columna que se utiliza para definir grupos o segmentos. Estos se usan para comparar comportamiento y medidas entre grupos. También se usan para construir índices de estabilidad. Si se deja en blanco se usa el valor de la partición.
+
+-   **`cols_no_predictoras`**: Lista de columnas a excluir del listado de variables candidatas. Lista de nombres de variables separadas por comas. Se fuerza la inclusión de las variables identificatorias y objetivo. Se pueden usar por ejemplo para incluir objetivos, ids o grupos alternativos.
+
+-   **`cols_forzadas_a_cat`**: Lista de variables candidatas numéricas forzadas a categóricas. Deben ser disjuntas de las no predictoras.
+
+-   **`cols_forzadas_a_predictoras`**: Lista de variables candidatas exceptuadas de la selección por bajo IV según **`par_iv`**. Notar que tanto el criterio univariado @sec-sel-univ como la lista **`cols_no_predictoras`** pueden eliminar elementos de esta lista.
+
+-   **`cols_nulos_adic`**: Lista de nombre_var = valor nulo. Estos valores se convierten a nulos reales. Se suman a los nulos existentes. Se pueden repetir nombres por si hay más de un código para los nulos adicionales. Por ejemplo, "Antiguedad = 0, Ingresos = 0, Limite = 'N/A'".
+
+### Partición de Datos {#sec-part-datos}
+
+-   **`par_split`**: Este parámetro controla como se asignan los filas para entrenamiento o validación. Admite valores no enteros entre 0 y 2. Es decir, admite cualquier número x cuando 0 \< x \< 1 ó 1 \< x \< 2. Si x vale menos que 1 asigna `par_split%` de los casos al azar para el conjunto de entrenamiento y el resto para validación. Si vale más que 1, la muestra completa se asigna a entrenamiento. El conjunto de validación recibe el valor `(par_split-1)%` de los casos al azar y se construye un conjunto de test que recibe el resto de los casos. Por ejemplo, si `par_split` vale 1.7 entonces, se construye el dataset `1_Train` con el 100% de los casos, `2_Test` con el 70% de los casos y `3_Valid` con el 30% restante. Esta partición es apropiada para muestras pequeñas o para realizar el ajuste final ya que permite ajustar con el 100% de los casos pero permitiendo evaluar la estabilidad 'in-sample' al comparar los resultados de `2_Test` vs. `3_Valid`. Tener en cuenta que si se cuentan con más de 100 columnas, para un modelado rápido se recomienda no entrenar con más de 10000 observaciones.
+
+### Selección y Transformación de Variables {#sec-sel-var}
+
+-   **`par_cor`**: Tras la discretización WoE, se excluyen las variables que tengan una correlación de Pearson (r) con la variable objetivo superior a este límite.
+
+-   **`par_conf_level`**: Límite para descartar variables por test de Chi-Sq en cada paso del método Forward K.
+
+-   **`par_discret`**: Este ajuste determina si las variables continuas se discretizan utilizando rampas (valor de 1) o una función escalonada (valor de 0). Las fuentes recomiendan dejar este y los siguientes parámetros de discretización sin modificar a menos que se comprenda claramente su función.
+
+-   **`par_iv`**: Las variables con un Valor de Información (IV) inferior a este umbral se descartan. El valor de IV se multiplica por 100 para facilitar la lectura, lo que significa que un valor estándar de 0,02 equivale a 2. Ver [Ref IV](https://anikch.medium.com/weight-of-evidence-woe-and-information-value-iv-how-to-use-it-in-eda-and-model-building-3b3b98efe0e8). Se admiten valores entre 0 y 100. Valores típicos oscilan entre 0.5 y 10. 0 descarta el filtro.
+
+-   **`par_limit_by_minbinq`**: Determina si se debe medir el tamaño del bin por el número de casos (1 para Verdadero, 0 para Falso). Esta funcionalidad se ha eliminado y el tamaño del bin ahora está determinado por el peso.
+
+-   **`par_limit_by_minbinw`**: Especifica si el tamaño del bin debe medirse por peso, tal como lo define `par_weight` (1 para Verdadero, 0 para Falso).
+
+-   **`par_maxlevels`**: Establece el número máximo de valores únicos permitidos para las variables categóricas. Si se supera este número no se transforma la variable y se genera un aviso.
+
+-   **`par_minpts1`**: Especifica el número mínimo de casos necesarios para cada bin en la primera etapa de la discretización.
+
+-   **`par_minpts2`**: Indica el número mínimo de casos necesarios en cada bin para la segunda etapa de la discretización. Este parámetro también se utiliza para determinar si hay suficientes puntos de datos para calcular el WoE para los valores nulos o si se debe asumir que es cero.
+
+-   **`par_minpts_cat`**: Define el número mínimo de casos necesarios en cada bin para la discretización de variables categóricas. Cuando un grupo tiene menos casos que este parámetro, se fusiona con el grupo "\_Otros". Los nulos se agrupan en el grupo '\_Missings'. Cuando el grupo '\_Otros' o el grupo '\_Missings' tienen menos de `par_minpts_cat` reciben un WoE de cero.
+
+-   **`par_nbins1`**: Establece el número de bines utilizados en la primera etapa de la discretización monotónica para las variables numéricas.
+
+-   **`par_nbins2`**: Define el número de bines en la segunda etapa de la discretización monotónica para las variables numéricas. Los valores nulos se agrupan por separado.
+
+### Informes y Análisis de Estabilidad
+
+-   **`par_cor_show`**: Este parámetro establece el umbral por encima del cual se muestran las correlaciones entre variables dentro del *modelo*.
+
+-   **`par_iv_cuantiles_gb_min`**: Establece el número mínimo de casos buenos y malos requeridos en cada cuantil para los informes de estabilidad, utilizado para determinar si un cuantil tiene suficientes datos para ser incluido.
+
+-   **`par_iv_tot_gb_min`**: Define el número total mínimo de casos buenos y malos necesarios para los informes de estabilidad.
+
+-   **`par_iv_tot_min`**: Establece el número total mínimo de casos necesarios para los informes de estabilidad.
+
+-   **`par_perf_bins`**: Determina el número de cuantiles que se utilizarán en los informes de performance. Se recomiendan cuantiles con por lo menos 100 observaciones de cada clase. Para muestras pequeñas se recomienda 10 ó 5 bines o cuantiles.
+
+-   **`par_quick`**: Determina si construir reportes rápidos o nó. Usar 0 para reportes estándar y 1 para versiones abreviadas pero más rápidas de los reportes
+
+-   **`par_vars_segmento`**: Lista de variables necesarias para reportes por Segmento y para el cálculo de Niveles de Riesgo.
+
+-   **`par_rango_segmentos`**: Tabla o Rango para reportes por Segmento.
+
+-   **`par_rango_niveles`**: Tabla o Rango de Niveles de Riesgo.
+
+-   **`par_rango_reportes`**: Tabla o Rango de la tabla de Reportes.
+
+-   **`par_times`**: Cantidad de submuestras para bootstrap.
+
+-   **`par_cant_reportes`**: Máxima cantidad de reportes.
+
+## Códigos de Errores
+
+| Código | Etapa | Celda | Descripción |
+|-------:|------:|-------|------------ |
+| 100 | Modelado | Carga Poblacion |No se pudo cargar el dataset inicial. Revisar accesos. |
+| 101 | Modelado | Carga Poblacion |Se leyó el dataset inicial pero algunas filas tuvieron problemas. Se publican hasta 3 de estas. |
+| 102 | Modelado | Carga Poblacion |Se cargó el dataset inicial pero se obtuvo una única columna. Revisar delimitador.|
+| 103 | Modelado | Carga Poblacion |El tipo de delimitador -parámetro data_source_type- no está permitido |
+| 104 | Modelado | Set-id | Algunas columnas identificadoras -parámetro par_ids- no existen en el dataset.|
+| 105 | Modelado |  Set-id | Las columnas identificadoras -parámetro par_ids- no son clave única. Cada fila/observación debe tener una única combinación de valores de las columnas id.|
+| 106 | Modelado |  Set-split | El valor del parámetro par_split no está permitido. Debe cumplir que 0 \< par_split \< 1 ó 1 \< par_split \<= 2.|
+| 107 | Modelado |  Set-weight | El parámetro par_weight debe existir en la muestra.|
+| 108 | Modelado |  Set-weight | Al menos un valor de par_weight fue negativo.|
+| 109 | Modelado |  Set-weight | La suma de los pesos -parámetro par_weight- debe ser positiva. No se admiten todos los valores nulos.|
+| 110 | Modelado |  Set-group | El parámetro par_var_grupo debe existir en la muestra.|
+| 111 | Modelado |  Set-target | El parámetro par_target debe existir en la muestra.|
+| 112 | Modelado |  Set-target | El parámetro par_target sólo puede tener valores 0 ó 1.|
+| 113 | Modelado |  Set-cols_no_predictoras | Algunas de las columnas del parámetro cols_no_predictoras no existen en la muestra.|
+| 114 | Modelado |  Set-forz-caracter | Algunas de las columnas del parámetro cols_forzadas_a_cat no existen en la muestra.|
+| 115 | Modelado |  Set-forz-caracter | Las columnas de los parámetros cols_forzadas_a_cat y cols_no_predictoras deben ser disjuntas.|
+| 116 | Modelado |  CheckVarsPred |No se encontró el listado de variables candidatas. Revisar que se haya ejecutado correctamente el proceso de Selección y Transformación de variables.|
+| 117 | Modelado |  Estab_IV_x_part_file | No se pudo grabar archivo.  Revisar problemas en el filesystem o permisos. |
+| 118 | Modelado |  DetallesWoEsContSTP | No se pudo grabar archivo.  Revisar problemas en el filesystem o permisos. |
+| 119 | Modelado |  DetallesWoEsContPWL | No se pudo grabar archivo.  Revisar problemas en el filesystem o permisos. |
+| 120 | Modelado |  DetallesWoEsCateg | No se pudo grabar archivo.  Revisar problemas en el filesystem o permisos. |
+| 121 | Modelado |  Scores_Save | No se pudo grabar archivo.  Revisar problemas en el filesystem o permisos. |
+| 122 | Modelado |  Save-Zip-Model | No se pudo grabar archivo.  Revisar problemas en el filesystem o permisos. |
+| 130 | Modelado |  check_pred_names | Los nombres de columna deben ser nombres de columna válidos. Sólo se admiten letras, dígitos, puntos y guiones bajos. Debe empezar con una letra o punto seguido de letra. |
+| 131 | Modelado |  check_pred_names | Los nombres de columna deben ser únicos en todo el dataset. |
+| 200 | Modelado |  Set-weight | Los valores del parámetro par_weight no positivos no enteros están permitidos pero el método ForwardK puede no converger. En este caso tratar de usar pesos enteros.|
+| 201 | Modelado | Max_Dif |Los scores calculados por la sentencia SQL generada no coinciden con los scores obtenidos del modelo. Posible problema en conversión de tipos ó valores nulos.
+| 305 | Init | Setup | Las listas cols_no_predictoras y cols_forzadas_a_cat deben disjuntas. Revisar esos parámetros. |
+| 306 | Init | Setup | Las listas cols_no_predictoras y cols_forzadas_a_predictoras deben disjuntas. Revisar esos parámetros. |
+| 307 | Init | Setup | Parámetros faltantes. Revisar archivo de Control de Parámetros. |
+| 308 | Init | Setup | Parámetros con tipos incorrectos! Los Tipos admitidos son list, numeric, string ó data.frame. Revisar archivo de Control de Parámetros. |
+| 309 | Init | Setup | No se encontró archivo de Control de Parámetros. |
+| 310 | Init | Carga Rangos | Tipo inválido. Los tipos admitidos en par_rangos_* son list, numeric, string o data.frame |
+| 311 | Modelado | Binning_Cont | Tipo inválido. Los tipos admitidos stp ó pwl. Revisar parámetro par_discret |
+| 312 | Valid | csv_2_score | No se encontró el archivo delimitado en el path. Revisar parámetro data_source_*_delim_path correspondiente. | 
+| 313 | Valid | csv_2_score | En la lectura del archivo delimitado, las columnas o tipos no fueron los esperados . Revisar parámetro data_source_*_delim_path correspondiente. | 
+| 314 | Valid | csv_2_score | El tipo de la fuente de datos debe ser DELIM O ODBC. Revisar parámetro data_source_type | 
+| 315 | Valid | csv_2_score | La sentencia SQL de scoring no retornó ningún registro. Revisar fuentes de datos y tipos. | 
+| 316 | Valid | csv_2_score | La sentencia SQL de scoring retornó un score medio fuera del rango 1 y 999. Revisar discrepancias en tipos de datos o escalas con respecto a desarrollo. | 
+| 317 | Valid | csv_2_score | La sentencia SQL de scoring retornó un score medio pesado fuera del rango 1 y 999. Revisar discrepancias en tipos de datos o escalas con respecto a desarrollo. | 
+| 318 | Gen SQL | step_2_pwl | Falló la construcción de la sentencia SQL de scoring. | 
+| 319 | Gen SQL | step_2_pwl | Falló la construcción de la sentencia SQL de scoring. | 
+| 320 | Gen SQL | step_2_pwl | Falló la construcción de la sentencia SQL de scoring. | 
+| 322 | Valid | load_range | Falló la carga de rango como dataframe. Revisar dataframes en json de Control de Parámetros | 
+| 323 | Valid | load_range | Las extensiones admitidas son xlsx o json.  Revisar archivo de Control de Parámetros | 
+| 324 | Valid | load_range | Los nombres de columnas de los rangos no son los esperados.  Revisar parámetros par_rango_* |
+| 325 | Init | empty_param | Los tipos de parámetros admitidos son list, numeric, string o data.frame.  Revisar el parámetro del error. |
+| 326 | Carga Muestra | aplic_nulos_adic | Se encontraron reglas con variables inexistentes en los datos! Falló la aplicación de cols_nulos_adic en la muestra. Revisar esos parámetros en la muestra. |
+| 327 | Valid | csv_2_score | Las columnas identificadoras no existen en la muestra!. Revisar parámetro par_ids en muestra. |
+| 328 | Valid | csv_2_score | Las columnas identificadoras no son clave única. Revisar parámetro par_ids en muestra. |
+| 329 | Valid | csv_2_score | Las columnas de pesos o frecuencias no existen en la muestra!. Revisar parámetro par_weight en muestra. |
+| 330 | Valid | csv_2_score | Al menos un valor de par_weight fue negativo. |
+| 331 | Valid | csv_2_score | La suma de los pesos -parámetro par_weight- debe ser positiva. No se admiten todos los valores nulos. |
+| 332 | Valid | csv_2_score | Los valores del parámetro par_weight no positivos no enteros están permitidos pero el método ForwardK puede no converger. En este caso tratar de usar pesos enteros. |
+| 333 | Valid | csv_2_score | El parámetro par_target debe existir en la muestra. |
+| 334 | Valid | csv_2_score | El parámetro par_target sólo puede tener valores 0 ó 1. |
+| 335 | Valid | csv_2_score | El parámetro par_var_grupo debe existir en la muestra. |
+| 336 | Valid | csv_2_score | Las columnas adicionales deben existir en la muestra para el cálculo del score. |
+| 337 | Valid | csv_2_score | La sentencia SQL de scoring tuvo un error. Revisar sent_sql fuentes de datos y tipos. | 
+| 338 | Valid | csv_2_score | La lectura de la muestra para scoring tuvo un error. Revisar fuentes de datos y tipos. | 
+| 410 | Valid | CheckReportesPedidos | La cantidad de reportes pedidas por las combinaciones excedió el parámetro par_cant_reportes. |
+| 411 | Valid | Check_Scores_Orig | La cantidad de filas obtenidas del parámetro  data_source_delim_path no coincide con la original! |
+| 412 | Valid | Check_Scores_Orig | Los scores obtenidos de data_source_delim_path no coinciden con los originales! |
+| 600 | Explorador IVs | Elección Reporte |No se encontró reporte de IVs.  Se ejecutaron correctamente Modelado y Validación en Desarrollo? |
+
+
+

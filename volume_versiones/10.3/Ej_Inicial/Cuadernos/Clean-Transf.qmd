@@ -1,0 +1,849 @@
+---
+subtitle: "Muestreo, Limpieza y Transformación de Variables"
+---
+
+```{r CargaParam}
+fs::path(bsm_path, "Scripts/Carga Parametros.R") |> source()
+```
+
+# `r project_title`
+
+## Introducción
+
+En este cuaderno analizamos las variables predictoras candidatas, las transformamos y seleccionamos aplicando varios criterios.
+
+## Distribución del Objetivo
+
+```{r Carga Poblacion}
+if (data_source_type == 'DELIM') {
+  rlang::try_fetch(
+    error = function(err) {
+      error_custom(err=err, 
+                   "x"="Problemas en la lectura de {data_source_delim_path}",
+                   ">"=cli::col_red("Cod 100"))
+    }, 
+    data_source_delim_path |> 
+    vroom::vroom(delim = data_source_delim, escape_double = FALSE, trim_ws = TRUE, guess_max = 50000,
+                 show_col_types = F) -> Datos_Modelo
+  )
+
+  Datos_Modelo |> vroom::problems() -> read_problems
+  if (!plyr::empty(read_problems)) 
+    error_custom("x"="Problemas en la lectura de {data_source_delim_path}", 
+             read_problems |> slice_head(n=3) |> format_delim(delim = ','),
+             ">"=cli::col_red("Cod 101"))
+  readr::spec(Datos_Modelo) -> spec_source
+  Datos_Modelo |> map_chr(~ class(.x)) -> types_source
+  if (Datos_Modelo |> ncol() <= 2) 
+    error_custom("x"="La cantidad de columnas debe ser mayor a 2!", 
+                 "i"="En cambio se leyó", Datos_Modelo |> colnames(), 
+                 ">"=cli::col_red("Cod 102"))
+  } else if (data_source_type == 'ODBC') {
+    data_source_query |>  
+      write.table(file = fs::path(project_path, "query_datos_sql.sql"), 
+                  row.names=F, col.names = F, fileEncoding = "UTF8") 
+    df_Param |> odbc_connect_w_keyring() -> con
+    data_source_query |> dbGetQuery(conn = con, statement = .) -> Datos_Modelo
+    dbDisconnect(con)
+  } else {
+    error_custom("x"='El tipo de la fuente de datos debe ser DELIM O ODBC.', 
+     'i'='Fue: {data_source_type}',
+     ">"=cli::col_red("Cod 103")
+     )
+  }
+```
+
+```{r Set-id}
+Datos_Modelo -> Datos_muestra
+Datos_muestra |> colnames() -> columnas_muestra
+if (empty_param(par_ids)) { 
+  Datos_muestra <- Datos_muestra |> mutate(.id=row_number(), .before = 1) 
+  .ids <- '.id'
+} else {
+  (par_ids |> setdiff(columnas_muestra)) -> cnd_vec
+  if (length(cnd_vec)>0) 
+      error_custom("La{?s} columna{?s} identificadora{?s} {cnd_vec} no existe{?n} en la muestra!", 
+        "i" = "Revisar parámetro {.code par_ids}",
+        ">"=cli::col_red("Cod 104")
+        ) else {
+        .ids <- par_ids
+        Datos_muestra <- Datos_muestra |> relocate(all_of(.ids), .before = 1)
+      }
+} 
+
+Datos_muestra |> 
+  summarise(unicos=n_distinct(across(all_of(.ids))), n=n()) |> 
+  mutate(ids_son_clave=unicos==n) |> 
+  pull(ids_son_clave) -> cnd
+  if (!cnd) 
+    error_custom(
+      "Las columna{?s} declarada{?s} en par_ids - {(.ids)} - no {?es/son} clave única!", 
+      ">"=cli::col_red("Cod 105"))
+Datos_muestra <- Datos_muestra |> arrange(across(all_of(.ids)))
+```
+
+```{r Set-split}
+if (0 < par_split & par_split < 1) Datos_muestra <- Datos_muestra |> 
+  mutate(.part=if_else(runif(n())<=par_split,"1_Train","2_Test"), .after = 1) else 
+  if (1 < par_split & par_split <= 2) 
+    Datos_muestra <- Datos_muestra |> mutate(.part="1_Train", .after = 1) |> bind_rows(
+      Datos_muestra |> mutate(.part=if_else(runif(n())<=par_split-1,"2_Test","3_Valid"), .after = 1)) else 
+        error_custom("Solo se admiten valores para par_split tal que 0 < par_split < 1 ó 1 < par_split <= 2. ", 
+          ">"=cli::col_red("Cod 106"))
+```
+
+```{r Set-weight}
+if (empty_param(par_weight)) {
+  Datos_muestra |> mutate(.weight=1, .after = 2) -> Datos_muestra
+  } else if (!all(par_weight %in% columnas_muestra)) {
+  error_custom("La{?s} columna{?s} de pesos o frecuencia{?s} {par_weight} no existe{?n} en la muestra!", 
+               "i" = "Revisar parámetro {.code par_weight}",
+               ">"=cli::col_red("Cod 107"))
+} else 
+  Datos_muestra |> mutate(.weight=.data[[par_weight]], .after = 2) -> Datos_muestra
+Datos_muestra |> filter(.part == '1_Train') |>  
+  summarise(wt=sum(.weight), 
+            wm=min(.weight), 
+            wn=all(is.wholenumber(.weight))) -> res 
+if (!res$wm >= 0) 
+  error_custom("Los pesos deben ser no negativos!", 
+               "i"="El mínimo fue {res$wm}", 
+               "i"="Los pesos se tomaron de la variable {par_weight}", 
+               ">"=cli::col_red("Cod 108"))
+if (!res$wt > 0) 
+  error_custom("Los pesos no pueden ser todos ceros!", 
+               "i"="Los pesos se tomaron de la variable {par_weight}", 
+               ">"=cli::col_red("Cod 109"))
+if (!res$wn) 
+  cli::cli_warn(c(
+  "No todos los pesos son enteros!", 
+  "x" = "Se esperan frecuencias en la variable {.var par_weight}.", 
+  "i" = "La convergencia de la regresión logística {.emph NO} está garantizada!"), 
+  ">"=cli::col_red("Cod 200"))
+```
+
+```{r Set-group}
+if (empty_param(par_var_grupo)) { 
+  Datos_muestra <- Datos_muestra |> 
+    mutate(.grupo = .part)
+} else if (!all(par_var_grupo %in% columnas_muestra)) {
+  error_custom("La{?s} columna{?s} de grupo{?s} {par_var_grupo} no existe{?n} en la muestra!", 
+               "i" = "Revisar parámetro {.code par_var_grupo}", 
+               ">"=cli::col_red("Cod 110"))
+} else {
+    Datos_muestra <- Datos_muestra |> 
+    mutate(.grupo = .data[[par_var_grupo]]) 
+}
+
+Datos_muestra <- Datos_muestra |> relocate(.grupo, .after = 3)
+```
+
+```{r Set-target}
+if (!all(par_target %in% columnas_muestra)) 
+  error_custom("La columna objetivo o target {par_target} no existe en la muestra!", 
+               "i" = "Revisar parámetro {.code par_target}",
+               ">"=cli::col_red("Cod 111"))
+Datos_muestra <- Datos_muestra |> 
+  mutate(Bad=.data[[par_target]], .after = 4)
+(Datos_muestra |> pull(Bad) %in% c(0,1)) -> cnd_vec
+which.min(c(cnd_vec, FALSE)) -> pos_break
+if (pos_break <= length(cnd_vec))
+  error_custom("Se encontraron valores de la columna objetivo o target {par_target} no permitidos!", 
+  "i" = "Sólo se permiten valores 0 ó 1", 
+  ">"=cli::col_red("Cod 112"),
+  "x" = "Se encontró el valor ",
+  Datos_muestra |> slice(pos_break) |> 
+    select(all_of(par_target)) |> format_delim(delim = ','),
+  "x" = "En ", 
+  Datos_muestra |> slice(pos_break) |> 
+    select(all_of(.ids)) |> format_delim(delim = ','),
+  "i" = "Revisar parámetro {.code par_target}") else 
+    Datos_muestra <- Datos_muestra |> mutate(Good=1-Bad, .after = 5)
+```
+
+```{r Set-nulos-adic}
+if (!empty_param(cols_nulos_adic)) {
+  Datos_muestra <- Datos_muestra |> aplic_nulos_adic(cols_nulos_adic) 
+}
+```
+
+```{r Set-cols_no_predictoras}
+Datos_muestra <- Datos_muestra |> ungroup()
+
+(cols_no_predictoras |> setdiff(columnas_muestra)) -> cnd_vec
+if (length(cnd_vec) > 0) 
+    error_custom("La{?s} columna{?s} declarada{?s} no predictora{?s} {cnd_vec} no existe{?n} en la muestra!", 
+      "i" = "Revisar parámetro {.code cols_no_predictoras}", 
+      ">"=cli::col_red("Cod 113"))
+
+cols_no_predictoras <- c(.ids, ".weight", ".grupo", "Good", "Bad",".part", par_target, cols_no_predictoras) |> 
+  purrr::discard(empty_param) |> unique()
+```
+
+```{r}
+#| label: check_pred_names
+columnas_muestra |> 
+  setdiff(cols_no_predictoras) |> 
+  check_names() -> res
+
+if (!res$all_valid) 
+  error_custom("Se detectaron nombres de columna inválidos!", 
+               "i" = "Renombrar ", res$invalid_names, 
+               ">"=cli::col_red("Cod 130"))
+
+if (!res$no_duplicates) 
+  error_custom("Se detectaron nombres de columna duplicados!", 
+               "i" = "Renombrar ", res$duplicated_names, 
+               ">"=cli::col_red("Cod 131"))
+```
+
+```{r Set-forz-caracter}
+if (!empty_param(cols_forzadas_a_cat)) {
+  (cols_forzadas_a_cat |> setdiff(columnas_muestra)) -> cnd_vec
+  if (length(cnd_vec) > 0) 
+    error_custom("La{?s} columna{?s} forzada{?s} a categorica{?s} {cnd_vec} no existe{?n} en la muestra!", 
+     "i" = "Revisar parámetro {.code cols_forzadas_a_cat}",
+     ">"=cli::col_red("Cod 114")) else {
+      (cols_forzadas_a_cat |> intersect(cols_no_predictoras)) -> cnd_vec
+      if (length(cnd_vec) > 0) 
+    error_custom("La{?s} columna{?s} forzada{?s} a categorica{?s} {cnd_vec} debe ser disjunta de la lista {.code cols_no_predictoras}!", 
+       "i" = "Revisar parámetros {.code cols_forzadas_a_cat}", 
+       "i" = "Revisar parámetros {.code cols_no_predictoras}",
+       ">"=cli::col_red("Cod 115")) else {
+             Datos_muestra <- Datos_muestra |> 
+               mutate(across(one_of(cols_forzadas_a_cat), as.character))
+    }
+    }
+}
+```
+
+### Muestra Desarrollo
+
+```{r DistObjetivo, results='asis'}
+Datos_muestra |> group_by(Bad) |> sum_table_1_gt()
+```
+
+### en Entrenamiento y Validación
+
+```{r DistSubCurrent, results='asis'}
+Datos_muestra |> group_by(.part, Bad) |> sum_table_2_gt()
+```
+
+
+```{r CaracteristicasVariables}
+if (par_split > 1) {
+  Datos_muestra |> 
+    filter(.part == '1_Train') |> 
+    select(-any_of(cols_no_predictoras)) |> 
+    my_skim() -> res 
+} else {
+  Datos_muestra |> 
+    select(-any_of(cols_no_predictoras)) |> 
+    my_skim() -> res 
+} 
+attr(x = res, which = 'df_name') <- 'Datos_muestra'
+'Características de variables.xlsx' |> with_output_path() -> file_name
+res |> skim_2_excel(file_name) -> res
+```
+
+
+## Construcción, Selección y Transformación de Variables
+### Selección por criterio univariado
+
+```{r SelVars1}
+### Busca valores unicos para descartar variables con un unico valor ###
+# Esta es la versión alivianada.  Antes se chequeaba que la cantidad de valores únicos en 
+# Train y Test fueran similares
+
+df.old <- Datos_muestra
+df <- Datos_muestra |> mutate(across(where(is.logical), as.character))
+train <- df |> filter(.part == "1_Train") 
+test  <- df |> filter(.part == "2_Test")
+
+n.unicos <- train |> 
+  select(-one_of(cols_no_predictoras)) |> summarise_all(n_distinct) |> tidyr::gather("Col", "Unique")
+n.unicos.test <- test |> 
+  select(-one_of(cols_no_predictoras)) |> summarise_all(n_distinct) |> tidyr::gather("Col", "UniqueTest")
+n.unicos <- n.unicos |> full_join(n.unicos.test, by="Col")
+### Define los tipos de predictores -> Continuos, Flags o Factores ###
+### y Excluímos las constantes ###
+pred.cont <- df |> select_if(is.numeric) |> colnames() |> 
+  intersect(n.unicos |> filter(Unique >= 2 & UniqueTest >= 2) |> pull(Col)) |> 
+  setdiff(cols_no_predictoras) 
+# Los flags los pongo como factores.
+pred.fac <- df |> select_if(~ (is.character(.) | is.logical(.))) |> colnames() |> 
+  intersect(n.unicos |> filter(Unique >= 2 & UniqueTest >= 2) |> pull(Col)) |> 
+  setdiff(cols_no_predictoras) 
+df <- df |> 
+  select(all_of(cols_no_predictoras), any_of(pred.cont), any_of(pred.fac)) |> 
+  as.data.frame()
+```
+
+Eliminando variables constantes de `r nrow(n.unicos)` variables candidatas quedaron `r length(pred.cont)` variables continuas y `r length(pred.fac)` variables nominales.
+
+Ver el Apéndice para más detalle. 
+
+### Binning
+
+En esta sección discretizamos cada variable predictora y la transformamos por WoE.
+Luego la incorporamos al conjunto de variables candidatas 
+si el Information Value, IV, de la variable discretizada es mayor a  **`r par_iv`** (par_iv) ó se encontraba en `cols_forzadas_a_predictoras`. 
+
+#### Variables continuas
+
+##### Detalle por variable
+
+<details>
+
+<summary>Ver detalle</summary>
+
+<p>
+
+```{r Binning_Cont}
+### Arma los binnings monotonos de las continuas  ###
+tab = list()
+dis <- idx <- 1
+
+for (col in pred.cont) {
+  generada <- 0
+  msg <- ""
+  message("Discretizando variable ", col)
+  res <- bin_monot(train,y="Good",x=col, nbins1=par_nbins1, minpts1=par_minpts1, nbins2=par_nbins2, minpts2=par_minpts2, minptsnulos=par_minpts_nulos, rampa=par_discret) # Discretizo por rampas, usando 0 se discretiza por escalera
+  tab[[idx]] <- c(var=col, var_gen=paste0(col,"_g"), generada=generada, msg=msg, rampa=par_discret, res)  
+  if (res$error) 
+    message("Variable ", col, " descartada por error. ", res$error_detalle)
+  else
+    if ("iv" %in% names(res)) {
+      if (res$iv >= par_iv | col %in% cols_forzadas_a_predictoras) {
+        res_g <- df |> apply_grouping_monot(woes_tab=res$woes_tab, x=col, col_agrup=paste0(col,"_g"), 
+          rampa=par_discret, woe_nulos = res$woe_nulos)
+        if (res_g$alerta) {
+          message("Advertencia: ", res_g$msg)
+          tab |> pluck(idx, "msg") <- res_g$msg
+        }
+        else {
+          df <- res_g$df
+          tab |> pluck(idx, "generada") <- 1
+          if (!(col %in% cols_forzadas_a_predictoras))
+            message("Se discretizó la variable ", col, " IV: ", round(res$iv,3), ">=", par_iv)
+          else {
+            reason <- paste("Se discretizó la variable ", col, " IV: ", round(res$iv,3), "<", par_iv, 
+                    " pero esta en la lista de candidatas forzadas") 
+            tab |> pluck(idx, "msg") <- reason
+            message(reason)
+          }
+          dis <- dis + 1
+        }
+      }
+      else {
+        reason <- paste("Variable ", col, " descartada por IV: ", round(res$iv,3), "<=", par_iv) 
+        tab |> pluck(idx, "msg") <- reason
+        message(reason)
+      }
+    } else {
+      reason <- paste("Variable ", col, " con fallo al cálculo de IV: ") 
+      tab |> pluck(idx, "error") <- TRUE
+      tab |> pluck(idx, "error_detalle") <- reason
+      warning(reason)
+    }
+  idx <- idx + 1
+}
+"VarsContDiscretizadas.Rdat" |> with_working_path() -> file_loc
+tab |> saveRDS(file = file_loc)
+```
+
+</p>
+
+</details>
+
+De `r length(pred.cont)` variables continuas, `r dis` se incorporaron al conjunto de variables predictoras.
+
+#### Variables categóricas
+
+##### Detalle por variable
+
+<details>
+
+<summary>Ver detalle</summary>
+
+<p>
+
+```{r Binning_Fact, collapse=TRUE}
+tab = list()
+dis <- idx <- 1
+for (col in (pred.fac)) {
+  generada <- 0
+  msg <- ""
+  res <- bin_factor(train, col, minpts=par_minpts_cat, Good="Good", maxlevels=par_maxlevels)
+  tab[[idx]] <- c(var=col, var_gen=paste0(col,"_g"), generada=generada, msg=msg, res)
+  if (res$error) 
+    message("Variable ", col, " descartada por error. ", res$error_detalle)
+  else
+    if ("iv" %in% names(res)) {
+      if (res$iv > par_iv | col %in% cols_forzadas_a_predictoras) {
+        res_g <- df |> apply_grouping_factor(res, paste0(col,"_g"))
+        if (res_g$alerta) {
+          tab |> pluck(idx, "msg") <- res_g$msg
+          message("Advertencia: ", res_g$msg)
+        }
+        else {
+          df <- res_g$df
+          tab |> pluck(idx, "generada") <- 1
+          if (!(col %in% cols_forzadas_a_predictoras))
+            message("Se discretizó la variable ", col, " IV: ", round(res$iv,3), ">=", par_iv)
+          else {
+            reason <- paste("Se discretizó la variable ", col, " IV: ", round(res$iv,3), "<", par_iv, 
+                    " pero esta en la lista de candidatas forzadas") 
+            tab |> pluck(idx, "msg") <- reason
+            message(reason)
+          }
+          dis <- dis + 1
+        }
+      }
+      else  {
+        reason <- paste("Variable ", col, " descartada por IV: ", round(res$iv,3), "<=", par_iv) 
+        tab |> pluck(idx, "msg") <- reason
+        message(reason)
+      }
+    } else {
+      reason <- paste("Variable ", col, " con fallo al cálculo de IV: ") 
+      tab |> pluck(idx, "error") <- TRUE
+      tab |> pluck(idx, "error_detalle") <- reason
+      warning(reason)
+    }
+  idx <- idx + 1
+}
+"VarsFactDiscretizadas.Rdat" |> with_working_path() -> file_loc
+tab |> saveRDS(file = file_loc)
+```
+
+</p>
+
+</details>
+
+De `r length(pred.fac)` variables discretas, `r dis` se incorporaron al conjunto de variables predictoras.
+
+Ver Apéndice para el listado completo.
+
+```{r Binning_Save, paged.print=FALSE}
+"DF_completo.Rdat" |> with_working_path() -> file_loc
+df |> saveRDS(file = file_loc)
+df$Good <- as.factor(df$Good)
+df$Bad <- as.factor(df$Bad)
+train <- df |> select(ends_with("_g"), .part, .weight, Good,Bad) |> 
+  filter(.part == "1_Train") |> select(-.part)
+vars.pred <- train |> select(-Good) |> colnames()
+```
+
+```{r tabbins}
+tab.bins <- c(readRDS("VarsContDiscretizadas.Rdat" |> with_working_path()), 
+              readRDS("VarsFactDiscretizadas.Rdat" |> with_working_path()))
+tab.ivs <- tab.bins |> map(~tibble(Variable=.$var, IV=.$iv)) |> 
+  reduce(bind_rows) |> arrange(desc(IV)) 
+```
+
+```{r tabWoes}
+tab_bins_df <- tab.bins |> tab_woes_cuts()
+```
+
+
+### Variables ordenadas por IV
+
+```{r VarsOrdxIV}
+gt_100_vars <- tab.ivs |> nrow() > 100
+```
+
+Las `r ifelse(gt_100_vars, "100", "")` variables con mayores IVs luego de **discretizarlas** fueron: 
+
+```{r tabIVs10vars}
+tab.ivs |> 
+  top_n(100, IV) |> 
+  df24gt(label_col1 = 'Variable', label_col2 = 'IV') |> 
+  fmt_number(columns = where(is.numeric), decimals = 1, locale = "es_AR") |> 
+  opt_row_striping() |> 
+  tab_header(title = "Variables ordenadas IV") 
+```
+
+`r if (!par_quick) "### Variables con pérdida de IV"`
+
+`r if (!par_quick) "#### Continuas"`
+
+```{r PerdIVs_Cont}
+#| eval: !expr '!par_quick'
+#| 
+tab <- tab.bins |> 
+  keep(~ .x$generada==1 && .x$type=="Continua" && .x$iv_antes_monot > par_iv) 
+if (length(tab) == 0) print('No hay variables continuas con pérdida de IV en las condiciones descritas') else { tab |> 
+  map(~tibble(Variable=.$var_gen, IV=.$iv, 
+  IV_antes=.$iv_antes_monot, 
+  IV_escalera=.$iv_monot_discret, IV_rampas=.$iv_monot_cont, 
+  IV_perd_escalera=.$iv_perd_discret, 
+  IV_perd_rampas=.$iv_perd_cont, 
+  Tipo=.$type)) |> 
+  reduce(bind_rows) |> arrange(desc(IV_perd_rampas)) |> 
+  filter(IV_antes>par_iv & IV_perd_rampas>5) |> 
+  select(Tipo, Variable, IV_antes, IV_escalera, IV_rampas, IV_perd_escalera, IV_perd_rampas) |> gt() |> 
+  fmt_number(columns = where(is.numeric), decimals = 1, locale = "es_AR") |> 
+  opt_row_striping() |> 
+  tab_header(title = "Pérdida de IV por discretización monótona") 
+}
+```
+`r if (!par_quick) "#### Categóricas"`
+
+```{r PerdIVs_Cat}
+#| eval: !expr '!par_quick'
+#| 
+tab <- tab.bins |> 
+  keep(~ .x$generada==1 && .x$type=="Factor" && .x$iv_antes_discret > par_iv) 
+if (length(tab) == 0) print('No hay variables categóricas con pérdida de IV en las condiciones descritas') else {
+  tab |> 
+  map(~tibble(Variable=.$var_gen, IV=.$iv_despues, 
+  IV_antes=.$iv_antes_discret, IV_perd_rel=.$iv_perd, Tipo=.$type)) |> 
+  reduce(bind_rows) |> arrange(desc(IV_perd_rel)) |> 
+  filter(IV_antes>par_iv & IV_perd_rel>5 & IV_antes-IV>1) |> 
+  select(Tipo, Variable, IV, IV_antes, IV_perd_rel) |> 
+  gt() |> 
+  fmt_number(columns = where(is.numeric), decimals = 1, locale = "es_AR") |> 
+  opt_row_striping() |> 
+  tab_header(title = gt::html("P&eacute;rdida de IV por discretizaci&oacute;n de variables Categ&oacute;ricas")) |> 
+  fmt_percent(columns = 'IV_perd_rel', decimals = 1, locale = 'es_AR', scale_values = F) |> 
+  cols_label(IV = html('IV despu&eacute;s'), IV_antes = 'IV antes', 
+             IV_perd_rel = gt::html('P&eacute;rdida relativa'))
+  }
+```
+
+
+### Correlaciones altas
+
+```{r corr}
+X.cor <- train |> select(ends_with("_g")) |> 
+  cor() |> as_tibble(rownames="Var1")
+X.cor.df <- tidyr::gather(X.cor, key = "Var2", value = "Cor", -Var1)
+tab <- X.cor.df |> filter(Var1<Var2 & abs(Cor)>par_cor) |> arrange(Var1, Var2)
+# vars.cor <- tab$Var1 |> union(tab$Var2) 
+if (nrow(tab)==0) cat('No hay variables con correlación > ', par_cor, "\n") else {
+  tab |> gt() |>     
+  tab_header(title = stringr::str_c("Variables candidatas con correlación mayor a ", par_cor)) |> 
+  fmt_number(columns = where(is.numeric), decimals = 2, locale = "es_AR") |> 
+  opt_row_striping() |> 
+  cols_label(Var1="Variable A", Var2="Variable B", Cor="Correlación")
+}
+```
+
+### Eliminación de variables muy correlacionadas
+
+En esta sección eliminamos las variables que tengan una correlación mayor o igual a **`r par_cor`** (par_cor) con otra variable predictora que la supere en IV.
+
+```{r ElimCorr}
+#### Programa ---------------------------------------------------------------------
+jugadores <- tab.bins |> keep(~.x$generada==1) |> 
+  map_dfr(~ tibble(var=.x$var, var_gen=.x$var_gen, iv=.x$iv))
+
+partidos <- tab |> filter(Cor>=par_cor)
+
+derrotados <- partidos |> 
+  inner_join(jugadores, by=c("Var1"="var_gen")) |> 
+  rename(var1=var, iv1=iv) |> 
+  inner_join(jugadores, by=c("Var2"="var_gen")) |> 
+  rename(var2=var, iv2=iv) |> 
+  mutate(var_derrot=if_else(iv1>=iv2, Var2, Var1)) |> 
+  distinct(var_derrot)
+
+candidatos <- jugadores |> anti_join(derrotados, by=c("var_gen"="var_derrot"))  
+# Para agregar a lista de no predictoras
+#derrotados |> pull(var_derrot) |> paste(collapse = ", ")
+```
+
+De las `r nrow(jugadores)` variables candidatas, eliminamos `r nrow(derrotados)` variables, quedando `r nrow(candidatos)`. 
+
+Ver listado en el Apéndice.
+
+### Listado final de variables candidatas
+
+```{r listvarCorSel}
+### Seleccionamos las variables a desacartar por correlaciones.#################
+saveRDS(tab, file = "Nombres_Correlacionadas.Rdat"  |> with_working_path())
+vars.pred.sincor <- candidatos |> pull(var_gen)
+```
+
+Las variables candidatas son a `r length(vars.pred.sincor)`.
+
+```{r listVarsPredsincor}
+tab <- tab.bins |> map(~tibble(Variable=.$var_gen, IV=.$iv)) |> 
+  reduce(bind_rows) |> arrange(desc(IV)) |> filter(Variable %in% vars.pred.sincor)
+tab |> 
+  df23gt(label_col1 = 'Variable', label_col2 = 'IV') |> 
+  fmt_number(columns = starts_with('col2'), decimals = 1, locale = "es_AR") |> 
+  tab_header(title = gt::html("Variables candidatas antes de selecci&oacute;n por Forward"))
+```
+
+## Apéndice
+
+### Parámetros
+
+```{r TablaParam}
+df_Param |> 
+  filter(!(parameter %in% c('nombre_archivo', 'data_source_type', 
+    'data_source_delim_path', 'data_source_delim', 'data_source_odbc_dsn', 
+    'keyring_svc_odbc', 'data_source_query', 'data_source_val_delim_path', 
+    'data_source_scoring_delim_path'))) |> 
+  select(parameter, value) |> 
+  arrange(parameter) |> 
+  gt() |> 
+  tab_header(title = "Parámetros") |> 
+  cols_label(parameter="Parámetro", value='Valor') |> 
+  tab_style(
+    cell_text(align = 'center' , weight = 'bold'),
+    locations = cells_column_labels(everything())
+  ) |> 
+  opt_table_lines(extent = 'all') |> 
+  opt_row_striping()   
+
+```
+### Variables de entrada descartadas
+
+```{r}
+tab.bins |> 
+  keep(~ .x$generada == 0) |> 
+  map_dfr(~ list(var=.x$var, error=.x$error, 
+                 msg=coalesce(.x$error_detalle, msg=.x$msg))) |> 
+  gt() |> 
+  tab_header(title = "Variables descartadas") |> 
+  cols_label(var="Variable", error='Error', msg="Motivo") |> 
+  tab_style(
+    cell_text(align = 'center' , weight = 'bold'),
+    locations = cells_column_labels(everything())
+  ) |> 
+  opt_table_lines(extent = 'all') |> 
+  opt_row_striping() 
+```
+
+
+### Tratamiento de Nulos en Variables Continuas
+
+```{r}
+tab_bins_df |> 
+  filter(tipo == 'Continua') |>  
+  mutate(pct_nulos = map_dbl(tab_iv, 
+           ~ .x |> filter(col_agrup == 'Nulos') |> 
+             pluck("PctRec", 1, .default = 0))) |> 
+  filter(pct_nulos > 0) |> 
+  select(var, woe_anulado, pct_nulos) |> 
+  arrange(desc(pct_nulos)) |> 
+  gt() |> 
+  tab_header(title = "Variables Continuas con nulos") |> 
+  cols_label(var="Variable", woe_anulado='WoE anulado', pct_nulos="% Nulos") |> 
+  tab_style(
+    cell_text(align = 'center' , weight = 'bold'),
+    locations = cells_column_labels(everything())
+  ) |> 
+  gt::fmt_percent(c('pct_nulos'), decimals = 1, scale = F) |>     
+  opt_table_lines(extent = 'all') |> 
+  opt_row_striping()
+```
+
+### Clasificación de variables de entrada
+#### Variables de entrada clasificadas Continuas
+
+```{r tablaPredCont}
+tibble(Var=pred.cont) |> long_tab_2_wide_gt(cols = "Var") |> 
+  tab_header("Variables de las muestra inicial clasificadas Continuas")
+```
+
+#### Variables de entrada clasificadas Categóricas
+
+```{r}
+tibble(Var = pred.fac) |> long_tab_2_wide_gt(cols = 'Var') |>
+  tab_header("Variables de las muestra inicial clasificadas Categóricas")
+```
+
+#### Variables eliminadas por alta correlación
+
+```{r listElim_x_alta_cor}
+derrotados |> long_tab_2_wide_gt(cols = "var_derrot") |> 
+  tab_header("Variables eliminadas por alta correlación con otra de mayor IV")
+```
+
+`r if (!par_quick) "### Estabilidad de variables candidatas\n"`
+
+```{r}
+#| eval: !expr '!par_quick'
+#| 
+tab_bins_df |> 
+  filter(var_gen %in% vars.pred.sincor) -> tab_bins_df
+```
+
+`r if (!par_quick && !empty_param(par_var_grupo)) glue::glue("#### x Grupos de {par_var_grupo} (par_var_grupo)\n")`
+
+`r if (!par_quick && empty_param(par_var_grupo)) glue::glue("#### x Grupos de Partición\n")`
+
+```{r}
+#| eval: !expr '!par_quick'
+
+# Si par_var_grupo es vacíó .grupo vale .part
+df |> 
+  mutate(".part":=coalesce(.part, "Missing")) |> 
+  drift_x_vars('.grupo', tab_bins_df) -> res_estab
+
+res_estab |> estab_tab_dist_2_gt() -> res_estab_tables
+```
+
+`r if (!par_quick) "##### Resumen por Grupos\n"`
+
+```{r}
+#| eval: !expr '!par_quick'
+#| 
+res_estab_tables |> pluck("x_grupos_tab")
+```
+
+`r if (!par_quick) "##### Resumen por Grupos y Variables\n"`
+
+```{r}
+#| eval: !expr '!par_quick'
+#| 
+res_estab_tables |> pluck("x_vars_tab")
+```
+
+`r if (!par_quick) "### Estabilidad de IVs\n"`
+
+`r if (!par_quick && !empty_param(par_var_grupo)) glue::glue("#### x Grupos de {par_var_grupo}\n")`
+
+```{r Estab_IV_x_group_file}
+#| eval: !expr '!par_quick && !empty_param(par_var_grupo)'
+#| 
+tab <- df |> estab_x_grupo(".grupo", tab_bins_df)  
+saveRDS(tab, file = stringr::str_c("Estab_ivs_cand_InS_x_grupo.Rdat" ) |> 
+    with_working_path())
+```
+
+```{r Estab_x_Grupo gt}
+#| eval: !expr '!par_quick && !empty_param(par_var_grupo)'
+#| 
+tab |> estab_tab_2_gt() -> tabs
+```
+
+```{r Estab_x_Grupo_res}
+#| eval: !expr '!par_quick && !empty_param(par_var_grupo)'
+#| 
+tabs |> pluck('xgrupo_tab')
+```
+
+```{r Estab_x_Grupo_errors}
+#| eval: !expr '!par_quick && !empty_param(par_var_grupo)'
+#| 
+tabs |> pluck('errors_tab')
+```
+
+```{r Estab_x_Grupo_vars}
+#| eval: !expr '!par_quick && !empty_param(par_var_grupo)'
+#| 
+tabs |> pluck('xvar_tab')
+```
+
+`r if (!par_quick) "#### x Partición\n"`
+
+```{r Estab_IV_x_part_table}
+#| eval: !expr '!par_quick'
+#| 
+df |> estab_x_grupo(".part", tab_bins_df, detailed = TRUE) -> tab
+```
+
+```{r Estab_IV_x_part_file}
+#| eval: !expr '!par_quick'
+#| 
+f.name = "Estab_ivs_cand_InS.Rdat" |> with_working_path()
+tab |> write_rds(f.name)
+if (!fs::file_exists(f.name)) 
+  error_custom("No se logró grabar el archivo {f.name}", 
+               ">"=cli::col_red("Cod 117"))
+```
+
+
+```{r Estab_x_part_gt}
+#| eval: !expr '!par_quick'
+#| 
+tab |> estab_tab_2_gt() -> tabs
+```
+
+```{r Estab_x_part_res}
+#| eval: !expr '!par_quick'
+#| 
+tabs |> pluck('xgrupo_tab')
+```
+
+```{r Estab_x_part_errors}
+#| eval: !expr '!par_quick'
+#| 
+tabs |> pluck('errors_tab')
+```
+
+```{r Estab_x_part_vars}
+#| eval: !expr '!par_quick'
+#| 
+tabs |> pluck('xvar_tab')
+```
+
+## Fin 
+
+```{r DetallesWoEsContSTP}
+tab.bins |> keep(~.x$type=="Continua" && .x$generada==1) |> map_chr(~.x$var) |> 
+  det_ivs_cont("stp", tab.bins) -> res
+if (res$error) message("Ninguna variable continua llegó a ser candidata! Detalle agrupación x WoE Continuas.html no generado.", "(",res$cod,")") else {
+  'WoE Step discretization on Continuous.html' |> 
+    with_output_path() -> f.name
+  res <- det_ivs_cont_gt(res$nom_ivs, res$tab_ivs) |> gtsave(f.name)  
+  if (!fs::file_exists(f.name)) 
+    error_custom("No se logró grabar el archivo {f.name}", 
+                 ">"=cli::col_red("Cod 118"))
+}
+```
+
+```{r DetallesWoEsContPWL}
+tab.bins |> keep(~.x$type=="Continua" && .x$generada==1) |> map_chr(~.x$var) |> 
+  det_ivs_cont("pwl", tab.bins) -> res
+if (res$error) message("Ninguna variable continua llegó a ser candidata! Detalle agrupación x WoE Continuas.html no generado.", "(",res$cod,")") else {
+  'WoE PWL discretization on Continuous.html' |> 
+    with_output_path() -> f.name
+  res <- det_ivs_cont_gt(res$nom_ivs, res$tab_ivs) |> gtsave(f.name)  
+  if (!fs::file_exists(f.name)) 
+    error_custom("No se logró grabar el archivo {f.name}", 
+                 ">"=cli::col_red("Cod 119"))
+}
+```
+
+```{r DetallesWoEsCateg}
+tab.bins |> keep(~.x$type=="Factor" && .x$generada==1) |> map_chr(~.x$var) |> 
+  det_ivs_categ(tab.bins) -> res
+if (res$error) message("Ninguna variable categórica llegó a ser candidata! Detalle agrupación x WoE Categoricas.html no generado.", "(",res$cod,")") else {
+  f.name <- 'WoE Discretization on Categorical.html' |> with_output_path()
+  res <- det_ivs_categ_gt(res$nom_ivs, res$tab_ivs) |> gtsave(f.name)  
+  if (!fs::file_exists(f.name)) 
+    error_custom("No se logró grabar el archivo {f.name}", 
+                 ">"=cli::col_red("Cod 120"))
+}
+```
+
+```{r variables_cand_simple_tab}
+file_name <- 'vars.pred.sincor.rds' |> with_working_path()
+vars.pred.sincor |> readr::write_rds(file_name)
+```
+
+```{r AdicDataDELIM}
+#| eval: !expr 'exists("spec_source")'
+#| 
+file_name <- 'adic_data.rds' |> with_working_path()
+list(.ids=.ids, spec_source=spec_source, 
+     types_source=types_source) |> readr::write_rds(file_name)
+```
+
+```{r AdicDataODBC}
+#| eval: !expr '!exists("spec_source")'
+#| 
+file_name <- 'adic_data.rds' |> with_working_path()
+list(.ids=.ids) |> readr::write_rds(file_name)
+```
+
+```{r End}
+#| output: false
+message(Sys.time(), ": Fin del cuaderno de Limpieza y Transformación de Variables")
+```

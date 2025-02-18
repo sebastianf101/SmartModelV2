@@ -1,0 +1,344 @@
+
+Recordar poner en el detalle de tabla de IV de factor woe_anulado y woe_datos. 
+
+Consultar la Guía del Usuario para una explicación más detallada.
+
+Aclarar que en categoricas cuando una categoría no tiene sufic puntos, va a _Otros.  
+Si _Otros no tiene par_minpts_cat entonces se anula el WoE.
+Si _Missing no tiene par_minpts_nulos entonces se anula el WoE.
+También se anulan si en el grupo no hay buenos o no hay malos. 
+
+Quito funcionalidad de par_limit_by_minbinq.  Ahora todo es por peso. 
+
+Recordar tabla para indicar WoE anulados. 
+
+Las variables categóricas (tambien llamadas nominales, factores) simplemente las discretizamos según sus valores únicos a excepción de los 'missings' y donde los casos por valor único son menos que el parámetro `par_minpts_cat`.
+Elegimos `r par_minpts_cat`.
+Estos últimos casos los agrupamos en el valor '\_Otros'.
+Y si tanto el grupo '\_Otros' como el grupo '\_Missings' tienen menos de `par_minpts_cat` les asignamos un WoE de cero.
+
+Las variables con valores IVs muy altos se consideran candidatas a investigar porque al ser demasiado predictivas pueden revelar el hecho de que están construídas con información posterior a la fecha de observación.
+Multiplicamos el valor del IV por **100** para facilitar la lectura.
+
+### Variables con pérdida de IV
+
+Seleccionamos las variables que superaron un IV de `par_iv =` `r par_iv` luego de **discretizarlas**.
+Esta transformación conlleva una pérdida de IV que esperamos se justifica para disminuir el sobreajuste a la muestra de desarrollo.
+
+Podemos sobreestimar esta pérdida al comparar el IV que se obtiene una la discretización que maximiza el IV y probablemente sobreajuste con el IV construídos en la sección de Binning.
+La pérdida la calculamos como (1 - IV después / IV antes) %.
+Es de esperar que por disminuir el sobreajuste aumente esta pérdida.
+En las tablas siguientes mostramos las pérdidas a partir de un 5% pero en general, un **10%** y hasta un **20%** de pérdida se puede considerar aceptable.
+
+Si aparecen pérdidas altas hay que analizar en el caso de las continuas si la imposición de monotonía no fue apropiada.
+Por ejemplo, una variable como la antiguedad puede tener una relación con la probabilidad de mora decreciente hasta un punto en donde la relación pasa a ser creciente.
+En este caso, la monotonía es inapropiada y la pérdida de IV nos sirve para detectar este fenómeno.
+
+Por otro lado, hay que tener en cuenta, como pasa con frecuencia con las categóricas, que aquellas variables que no sufren pérdida son candidatas a variables sobreajustadas a la muestra de Entrenamiento.
+
+#### Categóricas
+
+En la siguiente tabla mostramos las variables Categóricas que antes de discretizar tenían un IV mayor a `r par_iv` y que sufrieron una pérdida mayor al **5%** y mayor a 0.01 en términos absolutos.
+Recordemos que el IV *antes* de discretizar se calcula cómo el IV obtenido al agrupar por cada valor único de la variable, sin importar que en ese grupo haya menos de `r par_minpts_cat` casos.
+El IV *después* se obtiene simplemente uniendo los grupos con menos de `r par_minpts_cat` casos en uno solo grupo llamado "Otros\_".
+
+#### Continuas
+
+En cambio para las variables Continuas imponemos la restricción de monotonía.
+Lo realizamos de dos maneras.
+La primera que llamamos "escalera" impone que la variable sea monótona y constante a trozos lo cual resulta en un gráfico de la transformación parecido a una escalera (ascendente o descendente).
+La segunda que llamamos "rampas" impone que la variable sea monótona y lineal a trozos lo cual resulta en un gráfico de la transformación parecido a una linea quebrada ascendente o descendente formada por un conjunto de trozos o "rampas".
+
+En la tabla siguiente, el "IV_antes" se calcula cómo el IV obtenido al tratar a la variable con un "binning" no monótono clásico, en donde sólo exigimos que cada bin o grupo tengan al menos `r par_minpts1` casos.
+Es de esperar que una variable así discretizada tenga un gran sobreajuste.
+
+Las dos últimas columnas comparan el "IV_antes" con los "IV_escalera" y "IV_rampas" respectivamente.
+Sólo mostramos las variables que tuvieron una pérdida relativa del **5%** al comparar "IV_rampas" con "IV_antes" y que además "IV_antes" fuera mayor a `r par_iv*100`%.
+
+### Correlaciones altas
+
+Antes de proceder a la selección de variables candidatas por Forward K vamos a analizar la presencia de correlaciones mayores a `par_cor =` `r par_cor` en las variables *ya* discretizadas.
+
+Al momento de analizar las variables finales del modelo hay que revisar si aparece algún par de variables de la tabla de arriba.
+En la próxima sección descartamos algunas de estas variables.
+
+### Clasificación de variables de entrada
+
+El primer paso en la sección de `Construcción, Selección y Transformación de Variables`, distinguimos las variables entre Continuas y Factores -Categóricas-.
+Dentro de estas últimas se encuentran variables numéricas que forzamos a Categóricas porque la restricción de monotonía causó una pérdida importante de IV y porque tienen pocos valores, lo cual permite esta transformación.
+Además mostramos que variables de la muestra inicial se excluyeron de la lista de predictoras.
+
+### Estabilidad de variables candidatas.
+
+En esta sección evaluaremos la estabilidad de las variables entre grupos por dos métodos. 
+
+Los grupos se definen por el parámetro `par_var_grupo`. Si no se especificó se usan los grupos `1_Train`, `2_Test` y `3_Valid`. 
+
+En el primer método evaluamos la estabilidad de la distribuciones de las variables 
+comparando los bines -distribución empírica- de la variable en la muestra de entrenamiento `1_Train` y los bines en el grupo determinado.  Llamamos a los bines obtenidos en la muestra de entrenamiento la distribución de referencia.   
+
+Usamos dos medidas: la clásica medida PSI, -Population Stability Index- [Ref PSI](https://en.wikipedia.org/wiki/Kullback%E2%80%93Leibler_divergence#Symmetrised_divergence) y la norma L-infinito, que es la usada en Tensorflow: 
+[Ref TF](https://www.tensorflow.org/tfx/guide/tfdv#drift_detection). 
+
+En el segundo método evaluamos la estabilidad de los IVs obtenidos por la variable en cada grupo.  Notamos que este método requiere contar con la información del objetivo mientras que el primero no.  También notamos que el método por IV es más sensible a los cambios de distribución y está más directamente relacionado al impacto en el modelo.  
+
+#### Estabilidad de IVs
+
+Los IV reportados hasta ahora se calcularon en toda la muestra de entrenamiento.
+Para detectar posibles sobreajustes en esta sección vamos a calcular los IV en los grupos definidos por el parámetro `par_var_grupo` o los grupos correspondientes a la partición "in-sample" usada para el desarrollo del modelo.
+
+Si no hubiera sobreajuste, los grupos son suficientemente grandes y la variable de agrupamiento es independiente del objetivo esperamos que los IVs calculados en cada grupo sean similares.
+
+Si los grupos no son sufientemente grandes los IVs pueden ser inestables simplemente porque los "bines" de las tablas de IV subyacentes son muy pequeños.
+Para controlar este fenómeno en cada IV calculado contamos la cantidad de cuantiles con al menos `r par_iv_cuantiles_gb_min` - `par_iv_cuantiles_gb_min` - buenos y malos.
+Sólo si tenemos la mayoría de los "bines" en esta situación podemos confiar en el IV reportado.
+Así calculamos la medida "% Bines c/ datos" cómo el porcentaje de bines con suficientes datos comparado con el total de bines en cada tabla de IV.
+También detectamos si la cantidad total de casos de cada grupo y la cantidad total de buenos y malos es suficiente.
+
+Esta información la mostramos en dos tablas.
+Una de grupos y otra de variables.
+En la primera se reportan estadísticas por grupo.
+Aquí podemos verificar si existen grupos muy pequeños con insuficientes casos en general o bueno y malos en particular.
+
+En la segunda tabla, de variables, mostramos los IVs de los primeros 10 grupos ordenados segun el tamaño de cada uno.
+Coloreamos en naranja aquellos grupos que o bien no alcanzan los `r par_iv_tot_min` - `par_iv_tot_min` - casos o bien no cuentan con al menos `r par_iv_tot_gb_min` - `par_iv_tot_gb_min` - buenos o malos.
+
+Cómo el IV no distingue el orden entre "bines" incluímos una medida adicional a "% Bines c/ datos" que llamamos "% Ordenado".
+Surge al comparar la tasa de malos observada con la tasa de malos ideal.
+Los bines que mantienen su puesto al reordenar por tasa de malos en la tabla de IV subyacente cuentan en el numerador de este porcentaje.
+	
+#### Estabilidad de IVs
+
+Los IV reportados hasta ahora se calcularon en toda la muestra de entrenamiento.
+Para detectar posibles sobreajustes en esta sección vamos a calcular los IV en los grupos definidos por el parámetro `par_var_grupo` o los grupos correspondientes a la partición "in-sample" usada para el desarrollo del modelo.
+
+Si no hubiera sobreajuste, los grupos son suficientemente grandes y la variable de agrupamiento es independiente del objetivo esperamos que los IVs calculados en cada grupo sean similares.
+
+Si los grupos no son sufientemente grandes los IVs pueden ser inestables simplemente porque los "bines" de las tablas de IV subyacentes son muy pequeños.
+Para controlar este fenómeno en cada IV calculado contamos la cantidad de cuantiles con al menos `r par_iv_cuantiles_gb_min` - `par_iv_cuantiles_gb_min` - buenos y malos.
+Sólo si tenemos la mayoría de los "bines" en esta situación podemos confiar en el IV reportado.
+Así calculamos la medida "% Bines c/ datos" cómo el porcentaje de bines con suficientes datos comparado con el total de bines en cada tabla de IV.
+También detectamos si la cantidad total de casos de cada grupo y la cantidad total de buenos y malos es suficiente.
+
+Esta información la mostramos en dos tablas.
+Una de grupos y otra de variables.
+En la primera se reportan estadísticas por grupo.
+Aquí podemos verificar si existen grupos muy pequeños con insuficientes casos en general o bueno y malos en particular.
+
+En la segunda tabla, de variables, mostramos los IVs de los primeros 10 grupos ordenados segun el tamaño de cada uno.
+Coloreamos en naranja aquellos grupos que o bien no alcanzan los `r par_iv_tot_min` - `par_iv_tot_min` - casos o bien no cuentan con al menos `r par_iv_tot_gb_min` - `par_iv_tot_gb_min` - buenos o malos.
+
+Cómo el IV no distingue el orden entre "bines" incluímos una medida adicional a "% Bines c/ datos" que llamamos "% Ordenado".
+Surge al comparar la tasa de malos observada con la tasa de malos ideal.
+Los bines que mantienen su puesto al reordenar por tasa de malos en la tabla de IV subyacente cuentan en el numerador de este porcentaje.
+
+message("Se grabaron las tablas de IV de las variables candidatas continuas en: ", tab_file_name, ' ', res) 
+  message("Se grabaron las tablas de IV de las variables candidatas continuas en: ", tab_file_name, ' ', res) 
+  message("Se grabaron las tablas de IV de las variables candidatas categóricas en: ", tab_file_name, ' ', res)   
+
+Modelling
+
+Contamos con `r ncol(train) -1` variables. Emplearemos el método de regresión logística "Forward K" sobre este subconjunto de variables. Para aumentar la interpretabilidad y estabilidad del modelo lo usamos de manera iterativa para obtener un modelo sin coeficientes negativos. Cómo todas las variables discretizadas tienen una correlación positiva con la variable objetivo, este es el resultado esperado.
+
+De esta manera, en cada iteracción, si el resultado del ajuste forward tiene coeficientes negativos, removemos la primera variable que tenga coeficiente negativo que haya entrado en la secuencia forward. Luego, ejecutamos otra iteracción y repetimos el proceso hasta que todos los coeficientes sean positivos.
+
+## Performance
+
+Analizamos aquí la performance del modelo. Primero mostramos las curvas ROC y de Ganancias por Partición.
+
+Luego construimos una tabla de performance para el conjunto de entrenamiento cortada según `par_perf_bins` en `r par_perf_bins` cuantiles. Estos mismos cortes los usaremos para los conjuntos de Test y de Validación (si lo hubiera).
+
+Por último, presentamos un resumen de las tablas de performance y el detalle de cada una.
+
+Naturalmente el p-valor se relaciona con la importancia de cada variable dentro del modelo final (en rigor es la probabilidad de que el estadístico asociado al coeficiente en cuestión se observe sólo por azar, cuando no hay relación entre la variable predictora y el objetivo).
+
+### Resumen de Pasos
+
+Al resultado final agregamos en el siguiente cuadro, el IV de cada variable, lo cual se relaciona con la importancia de cada variable por separado, y el resumen de los pasos seguidos hasta el modelo final. Notar que ordenamos la tabla no por el paso sino por IV. 
+
+En cada paso, se eligió la variable más significativa según el test de Chi\^2 estándar. Mostramos además, las segundas y terceras variables más significativas con el nombre de competidoras.
+
+### Variables excluídas por cambio a coeficiente negativo.
+
+En la sección anterior mostramos que variable se incluyeron en cada paso. Sólo permanece elegida si entra con coeficiente positivo, sino se excluye.\
+El conjunto de las variables que fueron excluídas por ser la primera con coeficiente negativo en cada paso es **`r if_else(is.null(res.trad$vars.excl),"Vacío en este caso ", paste(res.trad$vars.excl, collapse = ","))`**. Es conveniente verificar si fueron excluídas por tener alta correlación con una variable existente o por otro motivo. Si es otro el motivo se debe investigar más.
+
+### Gráfico de evolución de los coeficientes por iteracción.
+
+Si graficamos los valores de los coeficientes asociados a cada variable a medida de que el modelo va incorporando variables podemos ver los cambios que produce la entrada de cada variable en el resto de las variables. En la situación ideal las nuevas variables tienen baja correlación con las existentes a cada paso, exhiben líneas paralelas sin cruzamientos y con valores cercanos a 1. Si se observa un desvío importante en alguna de estas condiciones entonces se puede sospechar multicolinealidad, lo cual produce una indeterminación en los coeficientes, que resulta a final en un modelo probablemente inestable.
+
+### Presencia de variables con correlación mayor a `r par_cor_show` (`par_cor_show`)
+
+En el cuaderno de Limpieza y Transformación mostramos los pares de variables candidatas con correlación mayor al parámetro `par_cor =` `r par_cor` y excluímos aquellas de menores IV. Aquí mostramos cuáles pares aparecen con correlación mayor o igual a `par_cor_show =` `r par_cor_show` dentro de las variables que integran el modelo si los hubiera. 
+
+Si hay pares aquí se debe considerar la exclusión de alguno de los integrantes de los pares. La permanencia de estos pares puede originar inestabilidad en la determinación de los coeficientes, y en consecuencia, inestabilidad en el modelo y empeorar la comprensión del modelo.
+
+### Comparación de curvas ROC y de Ganancias
+
+En esta sección graficamos las curvas ROC y de Ganancias de cada Partición.
+
+## Verificación de implementación SQL
+
+Dejamos para el Apéndice la publicación de la sentencia SQL que implementa el modelo. En esta sección verificamos que los scores generados por esta sentencia no difieren significativamente de los scores desarrollados aquí en R.
+
+Primero verificamos que los tamaños de las muestras sean iguales. Luego que la diferencia entre las scores sea cómo máximo 1. Lo cual es aceptable debido a errores de redondeo.
+
+### Tamaños de muestra iguales
+
+En la siguiente tabla debemos observar la misma cantidad de filas tanto para la muestra obtenida en R como la muestra obtenida en SQL.
+
+### Máxima diferencia entre Scores
+
+Si la máxima diferencia publicada aquí abajo es superior a 1 es probable que haya un error en la implementación en SQL. En general se producen por errores de tipos de datos y de tratamiento especial de algunas variables que no se reflejaron en la implementación automática a SQL.
+
+Si la máxima diferencia publicada aquí abajo es superior a 1 es probable que haya un error en la implementación en SQL. En general se producen por errores de tipos de datos y de tratamiento especial de algunas variables que no se reflejaron en la implementación automática a SQL.
+
+### Performance SQL
+
+Por último reproducimos la tabla de performance sobre toda la muestra de Entrenamiento con los scores implementados en SQL.
+
+## Niveles de Riesgo
+
+Establecemos los niveles de riesgo según el parámetro `par_rango_niveles`.  Si este no fue declarado se contruyen los niveles basados en cuantiles. Se declaran con un grupo de condiciones. También se define la tasa de malos máxima para cada nivel. La tasa de malos mínima está dada por la tasa máxima del nivel anterior. Como primera comprobación de alineación de los scores de la muestra vemos a continuación si la tasa de malos observada se encuentra entre estos dos límites.
+
+## Variable Segmento
+
+Establecemos la variable Segmento según el parámetro `par_rango_segmentos`.  Si este no fue declarado se usa un segmento único para toda la muestra de Desarrollo. 
+
+Para ver reportes detallados por Niveles de Riesgo ó Segmentos usar el Cuaderno 
+de *Validación en Desarrollo*. 
+
+### Orden de variables según estabilidad del IV por Grupos
+
+Cómo notamos en el cuaderno de Limpieza y Transformación, queremos que las variables que integran el modelo sean estables al variar grupos importantes, identificados por el parámetro `par_var_grupo`.
+
+Si este parámetro no fue declarado usamos los grupos `1_Train`, `2_Test` y `3_Valid`. 
+
+Las variables que encabezan la tabla merecen atención porque pueden causar inestabilidad en el modelo.
+
+### Registro de tablas y datasets
+
+Grabamos la Muestra de Desarrollo con Scores en "DF_con_scores.Rdat" y los componentes del Modelo, incluyendo la implementación SQL, en el comprimido "Modelo.zip". 
+
+# Alineación de Niveles de Score
+
+En esta sección comprobamos la alineación de los niveles de score en distintos agrupamientos. Esto es, vamos a verificar que, en cada tabla de performance, la tasa de malos observada se encuentra dentro de los límites definidos por los niveles de riesgo especificados.
+
+## Niveles de Riesgo
+
+Establecemos los niveles de riesgo según el parámetro `par_rango_niveles`.  Si este no fue declarado se contruyen los niveles basados en cuantiles. Se declaran con un grupo de condiciones. También se define la tasa de malos máxima para cada nivel. La tasa de malos mínima está dada por la tasa máxima del nivel anterior. Como primera comprobación de alineación de los scores de la muestra vemos a continuación si la tasa de malos observada se encuentra entre estos dos límites.
+
+En el Cuaderno de Modelado mostramos, para las variables del modelo, los gráficos y reportes de IV calculados en la muestra de "1_Train". Aquí agregamos las otras muestras de Desarrollo. 
+
+Establecemos la variable Segmento según el parámetro `par_rango_segmentos`.  Si este no fue declarado se usa un segmento único para toda la muestra de Desarrollo. 
+
+## Reportes especificados
+
+En el parámetro `par_rango_reportes` se definen los reportes a generar. Cada línea es una variables o lista de variables categóricas. Cada combinación de categorias define un reporte. De esta manera se van a generar la siguiente cantidad de reportes.
+
+## Validación por el método Bootstrap.
+
+Además de verificar la alineación en cada corte vamos a aplicar el método bootstrap para calcular el % de veces en que las submuestras están alineadas y para obtener un intervalo de confianza alrededor del KS.
+
+En detalle, se toman `r par_times` - según el parámetro `par_times:` -, submuestras con reemplazo. Observamos las tasas de malos y el KS. La columna `% veces Alineado` cuenta la proporción de tablas alineadas de las submuestras. Si es menor al 95% la subrayamos en rojo. Luego calculamos los cuantiles 2.5% y 97.5% de la distribución de los KS para establecer un clásico intervalo de confianza del 95%.
+
+## Validez de Muestra de Validación
+
+La validez de los análisis depende de contar con la suficiente cantidad de buenos y malos en la Nueva Muestra. 
+
+## Estabilidad de variables
+
+En esta sección evaluaremos la estabilidad de las variables entre los grupos 'Orig' y 'Val' por dos métodos. 
+
+En el primer método evaluamos la estabilidad de la distribuciones de las variables 
+comparando los bines -distribución empírica- de la variable en la muestra de Desarrollo `Orig` y los bines en la nueva Muestra.  Llamamos a los bines obtenidos en la muestra de Desarrollo la distribución de referencia.   
+
+Usamos dos medidas: la clásica medida PSI, -Population Stability Index- [Ref PSI](https://en.wikipedia.org/wiki/Kullback%E2%80%93Leibler_divergence#Symmetrised_divergence) y la norma L-infinito, que es la usada en Tensorflow: 
+[Ref TF](https://www.tensorflow.org/tfx/guide/tfdv#drift_detection). 
+
+En el segundo método evaluamos la estabilidad de los IVs obtenidos por la variable en cada grupo.  Notamos que este método requiere contar con la información del objetivo mientras que el primero no.  También notamos que el método por IV es más sensible a los cambios de distribución y está más directamente relacionado al impacto en el modelo.  
+
+### Estabilidad de IVs
+
+Calculamos aquí los IV de las variables del modelo tanto en la Nueva Muestra como en la muestra de Desarrollo. 
+
+Si la variable es estable esperamos que los IVs calculados en cada grupo sean similares.
+
+Los "bines" de las tablas de IV muy pequeños pueden introducir ruido.  Para controlar este fenómeno en cada IV calculado contamos la cantidad de cuantiles con al menos `r par_iv_cuantiles_gb_min` - `par_iv_cuantiles_gb_min` - buenos y malos.
+Sólo si tenemos la mayoría de los "bines" en esta situación podemos confiar en el IV reportado.
+
+Así calculamos la medida "% Bines c/ datos" cómo el porcentaje de bines con suficientes datos comparado con el total de bines en cada tabla de IV.
+También detectamos si la cantidad total de casos de cada grupo y la cantidad total de buenos y malos es suficiente.
+
+Esta información la mostramos en dos tablas. Una de grupos y otra de variables.
+En la primera se reportan estadísticas por grupo.
+Aquí podemos verificar si existen grupos muy pequeños con insuficientes casos en general o bueno y malos en particular.
+
+En la segunda tabla, de variables, mostramos los IVs de los primeros 10 grupos ordenados segun el tamaño de cada uno.
+Coloreamos en naranja aquellos grupos que o bien no alcanzan los `r par_iv_tot_min` - `par_iv_tot_min` - casos o bien no cuentan con al menos `r par_iv_tot_gb_min` - `par_iv_tot_gb_min` - buenos o malos.
+
+Cómo el IV no distingue el orden entre "bines" incluímos una medida adicional a "% Bines c/ datos" que llamamos "% Ordenado".
+Surge al comparar la tasa de malos observada con la tasa de malos ideal.
+Los bines que mantienen su puesto al reordenar por tasa de malos en la tabla de IV subyacente cuentan en el numerador de este porcentaje.
+
+### Detalle IVs
+
+En el Cuaderno de Modelado mostramos, para las variables del modelo, los gráficos y reportes de IV calculados en la muestra de "1_Train". Aquí agregamos las otras muestras de Desarrollo. 
+
+#### Comparación de curvas ROC y de Ganancias
+
+En esta sección graficamos las curvas ROC y de Ganancias de cada Muestra.
+
+### Estabilidad Cuantiles
+
+Complementamos los reportes de performance con el reporte de la estabilidad de los cuantiles de Score.  
+
+## Alineación de Niveles de Score
+
+En esta sección comprobamos la alineación de los niveles de score en distintos agrupamientos. Esto es, vamos a verificar que, en cada tabla de performance, la tasa de malos observada se encuentra dentro de los límites definidos por los niveles de riesgo especificados.
+
+### Niveles de Riesgo
+
+Establecemos los niveles de riesgo según el parámetro `par_rango_niveles`.  Si este no fue declarado se contruyen los niveles basados en cuantiles. Se declaran con un grupo de condiciones. También se define la tasa de malos máxima para cada nivel. La tasa de malos mínima está dada por la tasa máxima del nivel anterior. Como primera comprobación de alineación de los scores de la muestra vemos a continuación si la tasa de malos observada se encuentra entre estos dos límites.
+
+### Variable Segmento
+
+Establecemos la variable Segmento según el parámetro `par_rango_segmentos`.  Si este no fue declarado se usa un segmento único. 
+
+### Reportes especificados
+
+En el parámetro `par_rango_reportes` se definen los reportes a generar. Cada línea es una variables o lista de variables categóricas. Cada combinación de categorias define un reporte. De esta manera se van a generar la siguiente cantidad de reportes.
+
+### Validación por el método Bootstrap.
+
+Además de verificar la alineación en cada corte vamos a aplicar el método bootstrap para calcular el % de veces en que las submuestras están alineadas y para obtener un intervalo de confianza alrededor del KS.
+
+En detalle, se toman `r par_times` - según el parámetro `par_times:` -, submuestras con reemplazo. Observamos las tasas de malos y el KS. La columna `% veces Alineado` cuenta la proporción de tablas alineadas de las submuestras. Si es menor al 95% la subrayamos en rojo. Luego calculamos los cuantiles 2.5% y 97.5% de la distribución de los KS para establecer un clásico intervalo de confianza del 95%.
+
+Scoring
+
+## Estabilidad de variables
+
+En esta sección evaluaremos la estabilidad de la distribuciones del score y de las variables del modelo comparando los bines -distribución empírica- de la variable en la muestra de Desarrollo `Orig` y los bines en la nueva Muestra.  Llamamos a los bines obtenidos en la muestra de Desarrollo la distribución de referencia.   
+
+Usamos dos medidas: la clásica medida PSI, -Population Stability Index- [Ref PSI](https://en.wikipedia.org/wiki/Kullback%E2%80%93Leibler_divergence#Symmetrised_divergence) y la norma L-infinito, que es la usada en Tensorflow: 
+[Ref TF](https://www.tensorflow.org/tfx/guide/tfdv#drift_detection). 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,346 @@
+---
+subtitle: "Validación en Desarrollo (\"In-Sample\")"
+---
+
+```{r CargaParam}
+fs::path(bsm_path, "Scripts/Carga Parametros.R") |> source()
+```
+
+# `r project_title`
+
+## Introducción
+
+En este cuaderno medimos la alineación de los niveles de riesgo en distintos segmentos y los *IVs* de las variables del modelo en las distintas particiones de la muestra de desarrollo. 
+
+## Alineación
+
+### Niveles de Riesgo
+
+```{r Load_Model_Artifacts}
+"Modelo.zip" |> 
+  with_working_path() |> 
+  unzip(exdir = with_working_path("."))
+
+"sent.sql" |> 
+  with_working_path() |> 
+  read_file() -> sent_sql
+
+"Tab_Coef.Rdat" |> 
+  with_working_path() |> 
+  readRDS() |> 
+  filter(Variable!="(Intercept)") |> 
+  pull(Variable) -> vars_mod
+
+'adic_data.rds' |> 
+  with_working_path() |> 
+  read_rds() -> datos_adic
+
+datos_adic |> pluck(".ids") -> .ids 
+
+c(readRDS("VarsContDiscretizadas.Rdat" |> with_working_path()),               readRDS("VarsFactDiscretizadas.Rdat" |> with_working_path())) -> tab.bins
+
+tab.bins |> 
+  keep(~ .x |> pluck('var_gen') %in% vars_mod) |>  
+  map_chr(~ .x |> pluck('var')) |>  
+  c(vars_mod) -> vars_mod_ext
+
+tab.bins |> 
+  keep(~ .x |> pluck('var_gen') %in% vars_mod) |>  
+  tab_woes_cuts() -> cortes
+
+"tabPerfOrig.Rdat" |> 
+  with_working_path() |> 
+  read_rds() -> tabOrig
+
+"df_con_scores.csv" |> 
+  with_working_path() |> 
+  readr::read_csv(show_col_types = FALSE) -> df.scores
+
+```
+
+```{r CargaRangos}
+fs::path(bsm_path, "Scripts/Carga Rangos.R") |> source()
+```
+
+```{r Load_df_work}
+data_source_delim_path |> 
+  csv_2_score(con_target = TRUE,
+              spec_adic=datos_adic, 
+              mod_sql=sent_sql,                         
+              cols_adic=vars_mod_ext) -> df_work
+
+if (empty_param(par_var_grupo)) 
+  df.scores |> select(-score, -target, -.weight) -> df.scores else 
+    df.scores |> select(-score, -target, -.weight, -.grupo) -> df.scores
+
+df_work |> left_join(df.scores, by=.ids) -> df_work
+
+df_work |> 
+  range_2_newvar(tab_niv, "score_niv") |> 
+  range_2_newvar(tab_seg, "Segmento") |> 
+  mutate(bad = target, Bad = factor(bad), Target = Bad, Good = factor(Good)) -> df_work
+
+```
+
+```{r TablaNivelesRiesgo}
+df_work |> 
+  group_by(score_niv) |> 
+  summarise(n=n(), br=mean(bad)) |> 
+  mutate(n_p = n/sum(n)) |> 
+  left_join(tab_niv, by = c("score_niv" = "level_name")) |> 
+  arrange(level_order) |> 
+  mutate(Alineado = TM_min <= br & br <= TM_max) |> 
+  select(level_order, score_niv, rule, n, n_p, TM_min, br, TM_max, Alineado) |> gt() |> 
+  cols_label(level_order = "Orden", rule = "Regla", n = "#", n_p = "%",
+             score_niv = "Nivel de Riesgo", br = "Tasa de malos", Alineado = "Tasa alineada",
+             TM_min = gt::html("Tasa de malos<br>m&iacute;nima"), 
+             TM_max = gt::html("Tasa de malos<br>m&aacute;xima")) |> 
+  fmt_percent(columns = c(n_p, br, TM_min, TM_max), decimals = 1, locale = "es_AR") |> 
+  fmt_integer(level_order) |> 
+  tab_style(cell_text(color = 'red'),locations = cells_body(columns=br, rows = (Alineado==F))) |> 
+  opt_row_striping() |> 
+  tab_header(title = "Especificación y alineación de niveles de Riesgo")
+```
+
+### Variable Segmento
+
+```{r TablaSegmentos}
+df_work |> group_by(Segmento) |> 
+  summarise(n=n(), br=mean(bad)) |> 
+  mutate(n_p = n/sum(n)) |> 
+  left_join(tab_seg, by = c("Segmento" = "level_name")) |> 
+  arrange(level_order) |> 
+  select(level_order, Segmento, rule, n, n_p) |> gt() |> 
+  cols_label(level_order = "Orden", rule = "Regla", n = "#", n_p = "%",
+             Segmento = "Segmento") |> 
+  fmt_percent(columns = c(n_p), decimals = 1, locale = "es_AR") |> 
+  fmt_integer(level_order) |> 
+  opt_row_striping() |> 
+  tab_header(title = "Especificación y distribución de segmentos")
+```
+
+### Reportes especificados
+
+```{r ListReportesPedidos}
+df_work |> tab_rep_count(tab_rep, report_name) -> tab
+tab |> gt() |> 
+  cols_label(var = "Variables de corte", q_reps = "# Reportes a construir") |> 
+  grand_summary_rows(columns = q_reps, fns = list(Total = ~sum(.)), 
+                     fmt = ~ fmt_integer(.))
+```
+
+```{r CheckReportesPedidos}
+if (sum(tab$q_reps) > par_cant_reportes)
+  error_custom("La cantidad máxima permitida de reportes es {par_cant_reportes}.",
+               "i" = "Revisar las combinaciones de cortes o cambiar {.code par_cant_reportes}.",
+               ">"=cli::col_red("Cod 410"))
+```
+
+`r if (!par_quick) "### Validación por el método Bootstrap"`
+
+`r if (!par_quick) "#### Reportes"`
+
+```{r}
+#| label: "SubmuestrasTrain"
+#| eval: !expr '!par_quick'
+#| 
+if (0 < par_split & par_split < 1) 
+  df_work |> rsample::bootstraps(times = par_times, apparent = T) -> bt_rs else 
+  df_work |> filter(.part=="1_Train") |> rsample::bootstraps(times = par_times, apparent = T) -> bt_rs
+```
+
+```{r ReportesBootstrap}
+#| results: 'asis'
+#| eval: !expr '!par_quick'
+#| 
+for(corte in tab_rep$report_name) {
+  
+  cat("\n") 
+  cat("####", "x", corte, "\n") # Create second level headings with the names.
+  
+  bt_rs |> 
+    bt_rs_2_tab_bt_sum(score_var = score, score_niv_var = score_niv, 
+                              group_vars = corte, tab_ref_alin = tab_niv) |> 
+    tab_niv_bt_gt(title=corte) |> cols_hide(columns = c(S_Min, S_Prom, S_Max)) |> 
+  as_raw_html() |> cat()
+  
+  cat("\n")
+  
+}
+```
+
+`r if (!par_quick) "## IVs"`
+
+```{r IVs}
+# Ojo que queda incluso si es quick!
+df_work |> 
+  select(all_of(.ids), .weight, .part, .grupo, Good, Bad, bad, all_of(vars_mod), 
+         all_of(vars_mod |> stringr::str_remove("_g$"))) |> 
+  estab_x_grupo('.part', cortes, detailed = TRUE) -> df_estab_Part
+```
+
+`r if (!par_quick) "### Continuas"`
+
+```{r DetallesTablasCont}
+#| eval: !expr '!par_quick'
+#| 
+df_estab_Part |> 
+  pluck('xvars') |>  
+  filter(tipo == 'Continua') |> 
+  filter(variable %in% (vars_mod |> stringr::str_remove("_g$"))) |> 
+  mutate(var_name = paste(variable, 'en', valor_grupo)) |> 
+  rename(direction = sentido) |> 
+  select(variable, valor_grupo, var_name, direction, iv_tab) -> res
+error = (nrow(res)==0)
+if (error) message("Ninguna variable continua integra el modelo! Detalle de tablas no generado!")
+```
+
+`r if (!par_quick) "### Gráficos de IVs"`
+
+```{r}
+#| label: 'GraficosIVSCont'
+#| eval: !expr 'ifelse(!par_quick, !error, FALSE)'
+#| results: 'asis'
+#| column: page-right
+#| fig-width: 12
+#| 
+cat("::: {.panel-tabset}\n")
+res |> 
+  group_by(variable) |> 
+  group_walk(~ iv_grouped_tabs_cont_2_section(.x, .y)) -> descarte
+cat(":::\n")
+```
+
+`r if (!par_quick) "------------------------------------------------------------------------"`
+
+`r if (!par_quick) "### Tablas de IVs"`
+
+```{r}
+#| label: 'TablasIVSCont'
+#| eval: !expr 'ifelse(!par_quick, !error, FALSE)'
+#| results: 'asis'
+#| column: page-right
+#| 
+unique(res$variable) -> variables
+unique(res$valor_grupo) -> grupos
+cat("::: {.panel-tabset}\n")
+for (var in variables) {
+  cat("\n") 
+  cat("####", var, "\n") 
+  cat("\n\n") 
+  cat("::: {.panel-tabset}\n")
+  for (val_grupo in grupos) {
+    cat("#####", val_grupo, "\n") 
+    res |> 
+      filter(variable == var, valor_grupo == val_grupo) |> 
+      pluck('iv_tab', 1) |> 
+      det_iv_cont_gt(title = paste(var, "en", val_grupo)) |> 
+      as_raw_html() |> 
+      print() 
+  }
+  cat(":::\n")
+}
+cat(":::\n")
+```
+
+
+`r if (!par_quick) "------------------------------------------------------------------------"`
+
+`r if (!par_quick) "### Categóricas"`
+
+```{r DetallesTablasIVSCateg}
+#| eval: !expr '!par_quick'
+#| 
+df_estab_Part |> 
+  pluck('xvars') |>  
+  filter(tipo == 'Factor') |> 
+  filter(variable %in% (vars_mod |> stringr::str_remove("_g$"))) |>   
+  mutate(var_name = paste(variable, 'en', valor_grupo)) |> 
+  select(variable, valor_grupo, var_name, iv_tab) -> res
+error = (nrow(res)==0)
+if (error) message("Ninguna variable categórica integra el modelo! Detalle de tablas no generado!")
+```
+
+`r if (!par_quick) "### Gráficos de IVs"`
+
+```{r}
+#| label: 'GraficosIVSCateg'
+#| eval: !expr 'ifelse(!par_quick, !error, FALSE)'
+#| results: 'asis'
+#| column: page-right
+#| fig-width: 12
+#| 
+cat("::: {.panel-tabset}\n")
+res |> 
+  group_by(variable) |> 
+  group_walk(~ iv_grouped_tabs_categ_2_section(.x, .y)) -> descarte
+cat(":::\n")
+```
+
+`r if (!par_quick) "------------------------------------------------------------------------"`
+
+`r if (!par_quick) "### Tablas de IVs"`
+
+```{r}
+#| label: 'TablasIVSCateg'
+#| eval: !expr 'ifelse(!par_quick, !error, FALSE)'
+#| results: 'asis'
+#| column: page-right
+unique(res$variable) -> variables
+unique(res$valor_grupo) -> grupos
+cat("::: {.panel-tabset}\n")
+for (var in variables) {
+  cat("\n") 
+  cat("####", var, "\n") 
+  cat("\n\n") 
+  cat("::: {.panel-tabset}\n")
+  for (val_grupo in grupos) {
+    cat("#####", val_grupo, "\n") 
+    res |> 
+      filter(variable == var, valor_grupo == val_grupo) |> 
+      pluck('iv_tab', 1) |> 
+      det_iv_categ_gt(title = paste(var, "en", val_grupo)) |> 
+      as_raw_html() |> 
+      print() 
+  }
+  cat(":::\n")
+}
+cat(":::\n")
+```
+
+
+`r if (!par_quick) "------------------------------------------------------------------------"`
+
+## Fin
+
+
+```{r Save_tab_niv_y_rel.Rdat}
+f.name = "tab_niv_y_rel.Rdat" |> with_working_path()
+save(tab_niv, tab_seg, tab_rep, file = f.name)
+if (!fs::file_exists(f.name)) 
+  error_custom("No se logró grabar el archivo {f.name}")
+```
+
+
+```{r Save_Estab_ivs}
+f.name = "Estab_ivs_mod_InS.Rdat" |> with_working_path()
+df_estab_Part |> write_rds(f.name)
+if (!fs::file_exists(f.name)) 
+  error_custom("No se logró grabar el archivo {f.name}")
+```
+
+```{r ActModelo.zip}
+"Modelo.zip" |> with_working_path() |> 
+  zip(flags = "-ju", files = c(
+  "tab_niv_y_rel.Rdat" |> with_working_path(),
+  "Estab_ivs_mod_InS.Rdat" |> with_working_path()
+  )) -> res
+if (!(res == 0)) 
+  error_custom("Fallo al actualizar Modelo.zip! Cod zip: {res}")
+```
+
+```{r Fin}
+#| output: false
+message(Sys.time(), ": Fin del cuaderno de Validación en Desarrollo")
+```
+

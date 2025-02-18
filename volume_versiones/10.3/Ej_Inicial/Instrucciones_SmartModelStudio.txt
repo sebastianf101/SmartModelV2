@@ -1,0 +1,103 @@
+Instrucciones Smart Model Studio
+version 10.x
+
+Seguir los pasos 1) a 5) para correr SmartModelStudio por primera vez. 
+Para usos más avanzados leer el resto. 
+
+1) Conectarse al IDE de RStudio con un browser:
+URL: bsmart.com.ar:2024
+USR: usuario besmart (el mismo del dominio o Outlook).
+PWD: smartmodel
+Se recomienda ajustar el zoom del browser. 90% es una opción popular. 
+
+2) Si el login es exitoso aparecerá la interfaz del Rstudio.  
+Notar en el panel inferior derecho que la pestaña Files 
+es un explorador de archivos. 
+Para manipular archivos se disponen botones.  
+El botón "Upload" sirve para subir archivos al servidor. 
+En el botón "More..." hay más opciones.
+Dentro de las cuáles están "Export..." para bajar archivos del servidor. 
+Con la opción "Go to Working Directory" se va al directorio de trabajo.
+Para correr SmartModelStudio este debe ser Home/Documents/besmart.
+
+3) Al lado del ícono de una casa se muestra el directorio actual.
+Al inicio será también Home/Documents/besmart.
+La primera vez sólo veremos un archivo: "Limpiar archivos.R"
+Clickear este archivo para abrirlo en el panel de edición de código. 
+Este script borra los directorios de SmartModelStudio
+y prepara la corrida de un ejemplo. 
+Este script es necesario ejecutarlo la primera vez o cada vez 
+que se necesite actualizar a una nueva versión. 
+Por comodidad se puede ejecutar cada vez que se quiera empezar 
+un proyecto de cero. 
+Igual este script no afecta otros directorios que se pueden usar para 
+salvar información. 
+
+4) En el panel superior izquierdo se muestra el editor de codigo. 
+Localizar el botón "Source" y clickearlo para ejecutar el script. 
+Contestar en el diálogo con "s". 
+Se va a abrir un segundo script llamado "Tejer Cuadernos.R". 
+Clickear en el botón "Source" para ejecutar este script. 
+Se tejerán los cuadernos con el ejemplo inicial de Smart Model. 
+Esperar que termine el proceso.  Tarda unos minutos.
+Los resultados se encontrarán en las carpetas "Reportes" y "Datos". 
+
+5) Para aplicar SmartModelStudio a proyectos propios seguir
+los siguientes pasos:
+5.1) Bajar Params/Control de SmartModelStudio.xlsx 
+5.2) Ejecutar Limpiar archivos.R con "Source".
+5.3) Subir el dataset en formato delimitado a /Datos
+5.4) Subir la planilla de control con las modificaciones necesarias. 
+5.5) Ejecutar Tejer Cuadernos.R con "Source".
+
+6) Si se quiere más visibilidad durante el tejido se puede usar "Source with echo". 
+Los usuarios avanzados podrán modificar los cuadernos. 
+No se debe usar el botón "Knit" para tejer los cuadernos. 
+Usar la función tejer_cuaderno() en vez. 
+
+7) También se puede ejecutar paso a paso. 
+En ese caso, prestar atención al uso de las funciones para limpiar el entorno y el caché. 
+Una forma de hacerlo es ejecutar las lineas hasta clean_knit_cache() inclusive de "Tejer Cuadernos.R".
+
+En detalle:
+rm(list = ls(all.names = TRUE))
+setwd("~/Documents/besmart")
+version_bsm <- "10.1.2"
+version_path <- paste0("/var/data/besmart/versiones/", version_bsm)
+sys.source(fs::path(version_path, "Librerias/Utils Tejido.R"), envir = globalenv())
+clean_loaded_packages()
+sys.source(fs::path(version_path, "Librerias/Setup.R"), envir = globalenv(), keep.source = FALSE)
+clean_knit_cache()
+
+Luego se puede abrir el cuaderno que se quiere ejecutar de forma interactiva y 
+ejecutar con alguna de las opciones del menú Run. 
+
+7) Cambio de versiones.
+Normalmente se incorporan nuevas versiones y las viejas versiones permanecen. 
+
+Para cambiar la versión actual "i.j.k"" a otra versión "l.m.n" seguir estos pasos:
+
+7.1)	Abrir Limpiar archivos.R
+7.2)	Cambiar la línea 5 de version_bsm <- "i.j.k" a version_bsm <- "l.m.n"
+7.3)	Grabar la modificación.   
+7.4)	Ejecutar con "Source". 
+7.5)	Tiene que aparecer "Tejer Cuadernos.R" con  la versión "l.m.n" declarada en la línea 8.
+7.6)	Cambiar parámetros y datos. 
+7.7)	Ejecutar con "Source" y listo!
+
+La edición de Limpiar archivos.R sólo se hace la primera vez que una cambia de versiones.  
+
+8) Para cambiar la apariencia del IDE ir a Tools/Global Options/Appeareance.
+Hay temas más clásicos. 
+
+9) En la carpeta Scripts hay utilidades adicionales.  
+Por ejemplo, con el script "Inspección de pasos de regresion.R" podemos inspeccionar el detalle de cada paso empleado en la regresión. 
+
+10) Tips varios
+10.1) En Limpiar archivos se fija en 3 la cantidad de dígitos decimales a imprimir.  
+Se puede cambiar para el resto de la sesión ejecutando por ejemplo options(digits=8) o se puede cambiar sólo en un bloque de código ejecutando por ejemplo:
+{ options(digits=7) 
+mis_coeficientes |> gt() }
+
+10.2) Para navegar un cuaderno ejecutado de forma interactiva con muchas salidas (tablas, gráficos) es útil Edit/Collapse All Output. 
+También son útiles los atajos de teclado (ver Help/Keyboard Shortcuts Help) como Ctrl+1, Ctrl+2, Ctrl+F11, Ctrl+F12

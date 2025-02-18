@@ -1,0 +1,11 @@
+Escenarios_files
+/.quarto/
+Test?Automat/Entrada/
+Test?Automat/Salida/
+Test?Automat/env_vars.sh
+Test?Automat/Salida.zip
+Test?Automat/*.out
+*.zip
+*.tar.gz
+
+

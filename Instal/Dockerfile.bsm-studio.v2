@@ -1,0 +1,34 @@
+#
+# ------------------------------------------------------------------------------
+# Antes tenía agregado de servidor SSH desde sebastianf101/bsm-studio-paq:v2.2.1 
+# Refs: https://github.com/atmoz/sftp
+#
+FROM sebastianf101/bsm-studio-paq:v2.7
+# Chequeo que estoy en el directorio principal. Uno arriba de Instal.
+COPY ./Instal/rstudio-prefs.json /etc/rstudio/rstudio-prefs.json
+COPY ./Instal/FiraCode-Retina.ttf /etc/rstudio/fonts/
+COPY ./volume_versiones/ /var/data/besmart/versiones
+COPY ./Instal/RProfile.site /usr/local/lib/R/etc/Rprofile.site
+RUN chown -R rstudio:rstudio /var/data/besmart/versiones
+RUN chmod -R 755 /var/data/besmart/versiones
+RUN mkdir -p /var/data/besmart/Instal
+RUN mkdir -p /home/rstudio/Documents/besmart
+# No es necesario tenerlo cómo volumen
+# VOLUME /var/data/besmart/versiones
+# Util para parches
+COPY ./Instal/Init_users.sh /var/data/besmart/Instal/
+#
+# Alta de usuarios
+RUN addgroup --gid 1100 admin 
+RUN addgroup --gid 1200 consultores
+RUN addgroup --gid 1300 consultores_ext 
+RUN addgroup --gid 2000 compartido
+COPY ./Instal/users.conf.newusers.local /etc/security/
+RUN chmod 0600 //etc/security/users.conf.newusers.local
+RUN newusers //etc/security/users.conf.newusers.local
+#
+# Mecanismos de autenticación.  Sin uso. Falta mejorar
+# COPY ./Instal/login.defs /etc/login.defs
+# Funcionó la autenticación por pam_userdb pero no resuelve el user provisioning.  
+# Inicializa los directorios de cada usuario. 
+RUN /var/data/besmart/Instal/Init_users.sh
