@@ -19,7 +19,6 @@ usethis::git_sitrep()
 # 
 # ── Active usethis project: "C:/Users/sferro/Documents/Trabajo/Projects/SmartModel/SmartModelV2" ──
 # 
-# 
 # ── Git local (project) 
 # • Name: "sebastianf101"
 # • Email: "sebastianf101@gmail.com"
@@ -36,3 +35,13 @@ usethis::git_sitrep()
 # ℹ "origin" is a fork of "sferro-besmart/SmartModelV2", which is configured as the "upstream" remote.
 # ℹ Read more about the GitHub remote configurations that usethis supports at:
 #   <https://happygitwithr.com/common-remote-setups.html>.
+
+
+# Guía pull request con usethis
+# https://usethis.r-lib.org/articles/pr-functions.html
+usethis::pr_init(branch = "feature")
+# ✔ Pulling changes from "upstream/main".
+# ✔ Creating and switching to local branch "feature".
+# ☐ Use usethis::pr_push() to create a PR.
+
+

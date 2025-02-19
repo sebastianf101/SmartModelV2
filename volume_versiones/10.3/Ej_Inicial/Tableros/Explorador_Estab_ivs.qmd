@@ -65,7 +65,10 @@ textOutput("var_tipo")
 br()
 selectInput('grupo', label = 'Grupo', choices = grupos)
 br()
-actionButton(inputId = "stop_app", label = "Salir", icon = icon("sign-out-alt")) 
+actionButton(inputId = "stop_app", label = "Terminar", icon = icon("sign-out-alt")) 
+br()
+br()
+#textOutput("tiempo_restante")
 ```
 
 # **`r project_title`**
@@ -82,6 +85,67 @@ gt_output("table_iv")
 #| message: false
 #| warning: false
 
+# SF, de https://stackoverflow.com/questions/77853364/stop-shiny-app-after-specific-amount-of-time-without-activity#:~:text=The%20Shiny%20invalidateLater%28%29%20function%20will%20help%20you%20accomplish,when%20the%20specified%20number%20of%20milliseconds%20has%20passed.
+# choose number of milliseconds for how often to check idle time
+checkInterval <-  60000 # Chequea cada 60 segundos 
+
+# choose number of idle minutes that should trigger the modal dialog
+maxIdleAsk <- 15 # La idea es que si responde que no, no llega a dispararse de nuevo la pregunta porque se alcanza maxIdleMins
+
+# choose number of idle minutes that should trigger the app to close
+maxIdleMins <- 16
+
+# create reactive variable to track the number of minutes app has been idle
+idle <- reactiveVal(0) 
+
+# initialize the lastActivity reactive variable value to the current time
+lastActivity <- reactiveVal(isolate(Sys.time()))
+
+observeEvent({
+  input$rep_iv
+  input$variable
+  input$grupo
+  }, {
+  lastActivity(isolate(Sys.time()))
+})
+
+observe({   
+  # This reactive expression will re-evaluate after checkInterval milliseconds 
+  # has passed due to invalidateLater function.
+  invalidateLater(checkInterval)
+  # number of minutes since last activity
+  idle(difftime(isolate(Sys.time()), lastActivity(), units = "mins")) 
+
+  if (idle() > maxIdleAsk) {
+    show_timeout_warning()
+  }
+  
+  if (idle() > maxIdleMins) {
+    stopApp()
+  }
+
+})
+
+output$tiempo_restante <- renderText({ maxIdleMins - idle() })
+
+# Function to show the timeout warning modal
+show_timeout_warning <- function() {
+  showModal(modalDialog(
+    title = "Aviso de Inactividad",
+    "Su sesión va a expirar por inactividad. ¿Necesita más tiempo?",
+    footer = tagList(
+      modalButton("No"),
+      actionButton("extend_time", "Sí, necesito más tiempo.")
+    )
+  ))
+}
+ 
+# Extend session upon user request
+observeEvent(input$extend_time, {
+  lastActivity(isolate(Sys.time()))
+  removeModal()
+})
+  
 df_estab <- reactive({
   req(input$rep_iv)
   estab_ivs_available[[input$rep_iv]] |> 
