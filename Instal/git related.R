@@ -36,6 +36,10 @@ usethis::git_sitrep()
 # ℹ Read more about the GitHub remote configurations that usethis supports at:
 #   <https://happygitwithr.com/common-remote-setups.html>.
 
+gitcreds::gitcreds_set()
+gitcreds::gitcreds_get(use_cache = FALSE)
+gh::gh_whoami()
+gitcreds::gitcreds_set() # Opción 3 para ver el actual PAT. 
 
 # Guía pull request con usethis
 # https://usethis.r-lib.org/articles/pr-functions.html
@@ -44,4 +48,21 @@ usethis::pr_init(branch = "feature")
 # ✔ Creating and switching to local branch "feature".
 # ☐ Use usethis::pr_push() to create a PR.
 
+usethis::pr_push()
+# Which repo do you want to push to? 
+#   
+# 1: sebastianf101/SmartModelV2 = "origin" (external PR)
+# 2: sferro-besmart/SmartModelV2 = "upstream" (internal PR)
+# 
+# Selection: 1
+# ✔ Pushing "feature" branch to GitHub and setting "origin/feature" as upstream branch.
+# ☐ Create PR at link given below.
+# ✔ Opening URL <https://github.com/sebastianf101/SmartModelV2/compare/feature>.
+
+usethis::pr_finish()
+# ✔ Switching back to default branch ("main").
+# ✔ Pulling changes from "upstream/main".
+# ✔ Deleting local "feature" branch.
+# ✔ PR sferro-besmart/SmartModelV2/#1 has been merged, deleting remote branch "origin/feature".
+  
 
