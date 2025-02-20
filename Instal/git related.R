@@ -36,7 +36,8 @@ usethis::git_sitrep()
 # ℹ Read more about the GitHub remote configurations that usethis supports at:
 #   <https://happygitwithr.com/common-remote-setups.html>.
 
-gitcreds::gitcreds_set()
+gitcreds::gitcreds_set(url = "https://sferro-besmart@github.com")
+gitcreds::gitcreds_set(url = "https://sebastianf101@github.com")
 gitcreds::gitcreds_get(use_cache = FALSE)
 gh::gh_whoami()
 gitcreds::gitcreds_set() # Opción 3 para ver el actual PAT. 
