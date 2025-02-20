@@ -4,8 +4,8 @@
 # source ./envvars_efimeras.sh
 
 # Define the range (MIN_PORT and MAX_PORT)
-MIN_PORT=30000
-MAX_PORT=65000
+MIN_PORT=10000
+MAX_PORT=49151
 
 # Function to check if a port is free
 is_port_free() {
