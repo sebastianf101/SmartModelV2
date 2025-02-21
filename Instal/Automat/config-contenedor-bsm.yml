@@ -2,7 +2,7 @@ name: sm-cont-${BSM_NAME}
 
 services:
   studio:
-    image: sebastianf101/bsm-studio:v${BSM_VERSION}
+    image: ${BSM_IMAGE}
     ports:
        - ${BSM_PORT}:8787
        - ${BSM_DASHBOARD_PORT}:3838
