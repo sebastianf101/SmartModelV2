@@ -14,7 +14,7 @@
     },
     {
         "parameter": "par_quick",
-        "value": "1",
+        "value": "0",
         "Descripción": "Cuadernos rápidos?",
         "type": "numeric"
     },
