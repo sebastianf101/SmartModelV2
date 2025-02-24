@@ -32,27 +32,47 @@ Cabe aclarar que para el uso simultáneo cada instancia requiere un browser dist
 
 -   4G de memoria.
 
+-   PAT del repositorio Github de la imagen (opcional).
+
 ## Pasos
 
-1.  Instalar Docker Desktop. Docker corre en **`Linux`**. En Windows se instala en WSL2.\
+### 1
+
+Instalar Docker Desktop. Docker corre en **`Linux`**. En Windows se instala en WSL2.\
     Los scripts descritos a continuación hay que ejecutarlos desde una terminal **bash**.
 
-2.  En el disco S (\\\\datasrv) ir a la carpeta `S:\Proyectos\Smart Model` y bajarse a un directorio de Trabajo los comprimidos `Automat.zip` y `bsm-studio-v10.3.tar.gz` con una buena herramienta de FTP.
+### 2
 
-3.  Descomprimir `Automat.zip`. Se incluye un ejemplo de referencia de directorio de entrada con los archivos '`Control de SmartModelStudio.json`', '`Control de SmartModelStudio.xlsx`', `Muestra_Desarrollo.txt`, `Muestra_Scoring.txt` y `Muestra_Validación.txt.`
+En el disco S (\\\\datasrv) ir a la carpeta `S:\Proyectos\Smart Model` y bajarse a un directorio de Trabajo los comprimidos `Automat.zip` y la imagen  `bsm-studio-v10.3.tar.gz` con una buena herramienta de FTP.  
+Luego, cargar la imagen docker con
 
-4.  Abrir una terminal en el directorio de Trabajo y verificar que los .sh tengan permisos de ejecución con `ls -al`.
+  ``` bash
+  docker load -i bsm-studio-v10.3.tar.gz
+  ```
+De forma alternativa, si se cuenta con el PAT en la variable de entorno `GHCR_PAT` se puede cargar la imagen con: 
 
-5.  Cargar la imagen docker con
+  ``` bash
+  echo $GHCR_PAT | docker login -u sferro-besmart --password-stdin ghcr.io
+  docker pull ghcr.io/sferro-besmart/smartmodelv2:v10.3.0
+  docker logout ghcr.io
+  ``` 
 
-    ``` bash
-    docker load -i bsm-studio-v10.3.tar.gz
-    ```
+En ambos casos, modificar la versión `10.3` a la última disponible. 
 
-6.  Verificar que se encuentra la imagen cargada en Docker Desktop Images\
-    Luego se puede borrar el tar.gz para liberar espacio.
+### 3
 
-7.  Con los comandos
+Descomprimir `Automat.zip`. Se incluye un ejemplo de referencia de directorio de entrada con los archivos '`Control de SmartModelStudio.json`', '`Control de SmartModelStudio.xlsx`', `Muestra_Desarrollo.txt`, `Muestra_Scoring.txt` y `Muestra_Validación.txt.`
+
+### 4
+
+Abrir una terminal en el directorio de Trabajo y verificar que los .sh tengan permisos de ejecución con `ls -al`.
+
+### 5
+Verificar que se encuentra la imagen cargada en Docker Desktop Images\
+    Luego se puede borrar el tar.gz para liberar espacio si se usó ese método. 
+
+### 6
+Con los comandos
 
     ``` bash
     ./Levantar_Contenedor.sh [--name BSM_NAME] [--port BSM_PORT] [--dashboard BSM_DASHBOARD_PORT] [--help]
@@ -62,25 +82,28 @@ Cabe aclarar que para el uso simultáneo cada instancia requiere un browser dist
     ./Bajar_Contenedor.sh [BSM_NAME] [--help]
     ```
 
-    Levantamos o bajamos el contenedor con la imagen de Smartmodel.
+Levantamos o bajamos el contenedor con la imagen de Smartmodel.
 
-    Por ejemplo levantar con:
+Por ejemplo levantar con:
 
     ``` bash
     ./Levantar_Contenedor.sh --name Mi_SM --port 2024 --dashboard 2044
     ```
 
-    Con el contenedor corriendo podemos acceder al Rstudio en el puerto local 2024. Cuando corramos un tablero podremos acceder a él en el puerto 2044.
+Con el contenedor corriendo podemos acceder al Rstudio en el puerto local 2024. Cuando corramos un tablero podremos acceder a él en el puerto 2044.
 
-8.  Verificar que está subido el servicio abriendo con un browser localhost:2024 y logueándonos con el usuario user para entrar al Rstudio.
+### 7  
+Verificar que está subido el servicio abriendo con un browser localhost:2024 y logueándonos con el usuario user para entrar al Rstudio.
 
     Como en el caso anterior están disponibles también los usuarios user, user2, .., user5, usr_test, usr_test2, ..., usr_test5. Para un uso simultáneo cada instancia requiere un *browser* distinto. No es suficiente una pestaña o ventana distinta.
 
-9.  Verificar en Docker Desktop Containers las estadísticas de uso.\
+### 8
+Verificar en Docker Desktop Containers las estadísticas de uso.\
     Los datos persisten aunque se apague y reinicie el Docker Desktop.\
     Prendido pero inactivo el servicio no consume muchos recursos.
 
-10. Perdemos los datos sólo cuando bajamos el contenedor. Siguiendo el ejemplo:
+### 9
+Perdemos los datos sólo cuando bajamos el contenedor. Siguiendo el ejemplo:
 
     ``` bash
     ./Bajar_Contenedor.sh Mi_SM
