@@ -411,7 +411,7 @@ Ver @sec-perf.
 
 ## Explorador de Variables {#sec-expl-variables}
 
-Con esta herramienta se puede explorar se discretizaron las variables en bines y que WoE e IV obtuvieron en diferentes muestras. 
+Con esta herramienta se puede explorar en un browser cómo se discretizaron las variables en bines y que WoEs e IVs se obtuvieron en diferentes muestras. 
 
 En el panel izquierdo se puede elegir el conjunto de variables y la muestra sobre la que se evaluó: 
 
@@ -423,7 +423,11 @@ En este panel se puede elegir la variable a examinar y el grupo - `Train, Test, 
 
 En el panel principal se presentan los gráficos y tablas de IV. Consultar @sec-det-ivs para más detalle.  
 
+#### Salida 
 
+Al clickear el botón `Terminar` finaliza el proceso de exploración.  El browser queda inactivo y se debe cerrar la ventana.
+
+Además, luego de 15 minutos desde la última elección del usuarios, se le pregunta si necesita más tiempo.  Si no responde afirmativamente el proceso de exploración termina automáticamente. 
 
 ## Parámetros
 
