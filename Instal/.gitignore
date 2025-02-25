@@ -7,5 +7,7 @@ Test?Automat/Salida.zip
 Test?Automat/*.out
 *.zip
 *.tar.gz
+*.ppk
+
 
 
