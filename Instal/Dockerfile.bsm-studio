@@ -3,7 +3,7 @@
 # Antes tenía agregado de servidor SSH desde sebastianf101/bsm-studio-paq:v2.2.1 
 # Refs: https://github.com/atmoz/sftp
 #
-FROM sebastianf101/bsm-studio-paq:v2.7
+FROM bsm-studio-paq
 # Chequeo que estoy en el directorio principal. Uno arriba de Instal.
 COPY ./Instal/rstudio-prefs.json /etc/rstudio/rstudio-prefs.json
 COPY ./Instal/FiraCode-Retina.ttf /etc/rstudio/fonts/

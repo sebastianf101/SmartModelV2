@@ -1,5 +1,5 @@
 --- 
-title: "Guía de Usuario" 
+title: "Guía de Uso de Smart Model" 
 format: html 
 number-sections: true
 ---

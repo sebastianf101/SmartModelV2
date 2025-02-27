@@ -1,5 +1,5 @@
 ---
-title: "Guía de Uso de Smart Model"
+title: "Guía de Instalación de Smart Model"
 subtitle: "versión 10.3"
 ---
 
@@ -43,11 +43,11 @@ Instalar Docker Desktop. Docker corre en **`Linux`**. En Windows se instala en W
 
 ### 2
 
-En el disco S (\\\\datasrv) ir a la carpeta `S:\Proyectos\Smart Model` y bajarse a un directorio de Trabajo los comprimidos `Automat.zip` y la imagen  `bsm-studio-v10.3.tar.gz` con una buena herramienta de FTP.  
+En el disco S (\\\\datasrv) ir a la carpeta `S:\Proyectos\Smart Model` y bajarse a un directorio de Trabajo los comprimidos `Automat.zip` y la imagen  `bsm-studio.tar.gz` con una buena herramienta de FTP.  
 Luego, cargar la imagen docker con
 
   ``` bash
-  docker load -i bsm-studio-v10.3.tar.gz
+  docker load -i bsm-studio.tar.gz
   ```
 De forma alternativa, si se cuenta con el PAT en la variable de entorno `GHCR_PAT` se puede cargar la imagen con: 
 
@@ -55,9 +55,10 @@ De forma alternativa, si se cuenta con el PAT en la variable de entorno `GHCR_PA
   echo $GHCR_PAT | docker login -u sferro-besmart --password-stdin ghcr.io
   docker pull ghcr.io/sferro-besmart/smartmodelv2:v10.3.0
   docker logout ghcr.io
+  docker tag ghcr.io/sferro-besmart/smartmodelv2:v10.3.0 bsm-studio
   ``` 
 
-En ambos casos, modificar la versión `10.3` a la última disponible. 
+Modificar la versión `10.3.0` a la última disponible. 
 
 ### 3
 
