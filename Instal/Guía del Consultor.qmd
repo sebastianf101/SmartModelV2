@@ -8,7 +8,7 @@ number-sections: true
 
 ### Construcción de las muestras
 
-Al inicio se lee el dataset de la locación `data_source_delim_path` con el delimitador `data_source_delim`. La mala asignación de este parámetro puede ocasionar que cada línea se lea como una única columna produciendo el error correspondiente.
+Primero se lee la muestra desde la carpeta `data_source_delim_path` con el delimitador `data_source_delim`. La mala asignación de este parámetro puede ocasionar que cada línea se lea como una única columna produciendo el error correspondiente.
 
 Luego, se divide la muestra entre las *particiones* `1_Train`, `2_Test` y opcionalmente `3_Test` de acuerdo al parámetro `par_split`. Por ejemplo, con el valor 0.7 se asignan al azar 70% de las filas a la muestra `1_Train` y el 30% restante a `2_Test`.\
 Para otros usos consultar @sec-part-datos.
@@ -437,7 +437,7 @@ Además, luego de 15 minutos desde la última elección del usuarios, se le preg
 
 -   **`par_target`**: Columna con el objetivo del Modelo. Sólo se admiten valores 0 o 1. En base a esta variable se construyen las variables Bad y Good = 1 - Bad.
 
--   **`par_weight`**: Columna que indica la frecuencia de la observación, utilizada como ponderación durante el entrenamiento del modelo. Si se deja en blanco, cada fila recibe una ponderación por defecto de 1. Los pesos deben ser no negativos y al menos uno debe ser positivo. Se recomienda usar pesos enteros. Cuando se cuentan con pocos casos de la clase minoritaria, es útil usar la técnica de `upweighting` [Ref UpW](https://developers.google.com/machine-learning/crash-course/overfitting/imbalanced-datasets).\
+-   **`par_weight`**: Columna que indica la frecuencia de la observación, utilizada como ponderación durante el entrenamiento del modelo. Si se deja en blanco, cada fila recibe una ponderación por defecto de 1. Los pesos deben ser no negativos y al menos uno debe ser positivo. Para garantizar la convergencia se recomienda usar pesos enteros constantes para cada valor de par_target. Cuando se cuentan con pocos casos de la clase minoritaria, es útil usar la técnica de `upweighting` [Ref UpW](https://developers.google.com/machine-learning/crash-course/overfitting/imbalanced-datasets).\
     En los reportes se distingue esta columna con la letra `W`.
 
 -   **`par_var_grupo`**: Columna que se utiliza para definir grupos o segmentos. Estos se usan para comparar comportamiento y medidas entre grupos. También se usan para construir índices de estabilidad. Si se deja en blanco se usa el valor de la partición.
@@ -463,10 +463,6 @@ Además, luego de 15 minutos desde la última elección del usuarios, se le preg
 -   **`par_discret`**: Este ajuste determina si las variables continuas se discretizan utilizando rampas (valor de 1) o una función escalonada (valor de 0). Las fuentes recomiendan dejar este y los siguientes parámetros de discretización sin modificar a menos que se comprenda claramente su función.
 
 -   **`par_iv`**: Las variables con un Valor de Información (IV) inferior a este umbral se descartan. El valor de IV se multiplica por 100 para facilitar la lectura, lo que significa que un valor estándar de 0,02 equivale a 2. Ver [Ref IV](https://anikch.medium.com/weight-of-evidence-woe-and-information-value-iv-how-to-use-it-in-eda-and-model-building-3b3b98efe0e8). Se admiten valores entre 0 y 100. Valores típicos oscilan entre 0.5 y 10. 0 descarta el filtro.
-
--   **`par_limit_by_minbinq`**: Determina si se debe medir el tamaño del bin por el número de casos (1 para Verdadero, 0 para Falso). Esta funcionalidad se ha eliminado y el tamaño del bin ahora está determinado por el peso.
-
--   **`par_limit_by_minbinw`**: Especifica si el tamaño del bin debe medirse por peso, tal como lo define `par_weight` (1 para Verdadero, 0 para Falso).
 
 -   **`par_maxlevels`**: Establece el número máximo de valores únicos permitidos para las variables categóricas. Si se supera este número no se transforma la variable y se genera un aviso.
 
@@ -537,6 +533,8 @@ Además, luego de 15 minutos desde la última elección del usuarios, se le preg
 | 131 | Modelado |  check_pred_names | Los nombres de columna deben ser únicos en todo el dataset. |
 | 200 | Modelado |  Set-weight | Los valores del parámetro par_weight no positivos no enteros están permitidos pero el método ForwardK puede no converger. En este caso tratar de usar pesos enteros.|
 | 201 | Modelado | Max_Dif |Los scores calculados por la sentencia SQL generada no coinciden con los scores obtenidos del modelo. Posible problema en conversión de tipos ó valores nulos.
+| 202 | Modelado | weight_error | El método ForwardK no convergió. Intentar con valores de par_weight constantes o constantes por cada valor de par_target. |
+| 203 | Modelado | weight_error | El método ForwardK no convergió por causas internas. Reportar el caso. |
 | 305 | Init | Setup | Las listas cols_no_predictoras y cols_forzadas_a_cat deben disjuntas. Revisar esos parámetros. |
 | 306 | Init | Setup | Las listas cols_no_predictoras y cols_forzadas_a_predictoras deben disjuntas. Revisar esos parámetros. |
 | 307 | Init | Setup | Parámetros faltantes. Revisar archivo de Control de Parámetros. |

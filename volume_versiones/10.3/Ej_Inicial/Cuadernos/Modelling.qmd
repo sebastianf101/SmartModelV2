@@ -59,7 +59,24 @@ En este cuaderno construimos un modelo de score a partir de las variables `r len
 ### Coeficientes del modelo
 
 ```{r ForwardK}
-res.trad <- logit.fwd(train,target = "Good", verbose = F)
+res.trad <- tryCatch({
+  logit.fwd(train, target = "Good", verbose = FALSE)
+  },
+  error = function(e) {
+    if (any(train$.weight != 1)) {
+      error_custom("El método ForwardK no convergió. Intentar con valores de par_weight constantes o constantes por cada valor de par_target.", 
+               ">"=cli::col_red("Cod 202"))
+    } else {
+      error_custom("El método ForwardK no convergió. El método ForwardK no convergió por causas internas. Reportar el caso.", 
+               ">"=cli::col_red("Cod 203"))
+    }
+    return(NULL)
+  }
+)
+```
+
+
+```{r ForwardK_Results}
 mod.trad <- res.trad$det$mod.curr
 tab.co <- mod.trad |> broom::tidy() |> select(term, estimate) |> rename(Variable=term, Beta=estimate)
 vars_mod <- tab.co |> filter(Variable!="(Intercept)") |> pull(Variable) 
