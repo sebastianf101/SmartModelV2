@@ -2,7 +2,10 @@
 # Asume Parámetros bien cargados y 
 # el dataframe df.scores con la muestra de Desarrollo!
 
-tab_niv_default <- function(par_df, par_tab_niv_nbins = 6) {
+# Por defecto crea par_tab_niv_nbins - 1 niveles! 
+tab_niv_default <- function(par_df, 
+                            par_tab_niv_nbins = 6, 
+                            par_minpts = par_minpts2) {
   # Uso:
   # df.scores |> 
   #   filter(.part == '1_Train') |> 
@@ -22,19 +25,20 @@ tab_niv_default <- function(par_df, par_tab_niv_nbins = 6) {
   assertthat::assert_that(all(c("score", "Good", ".weight") %in% colnames(par_df)))
   
   par_df |> 
-    bin_monot(y="Good",x='score', 
-              nbins1=par_nbins1, minpts1=par_minpts1, 
-              nbins2=par_tab_niv_nbins, minpts2=par_minpts2, 
-              rampa=par_discret) -> res_monot
+    rename(x=score, y=Good) |> 
+    eqbin_Lin(nbins = par_tab_niv_nbins, 
+              minpts = par_minpts, nvals.min = 2) -> tab
   
-  if (par_discret==0) {
-    res_monot[['tab_iv_stp']] -> tab_iv
-  } else {
-    res_monot[['tab_iv_pwl']] -> tab_iv
-  }
+  tab$df |> 
+    group_by(bin) |> 
+    summarise(cut_lo=min(x), cut_median=median(x), cut_mean=mean(x), cut_hi=max(x), 
+              CntRec=sum(.weight), CntGood=sum(y*.weight), CntBad=sum((1-y)*.weight)) |> 
+    mutate(BadRate=CntBad/CntRec*100) |> 
+    arrange(cut_lo) |> 
+    mutate(orden = row_number()) -> tab_bins
   
-  tab_iv |> 
-    filter(col_agrup != 'Total') |> 
+  
+  tab_bins |> 
     select(orden, cut_lo, BadRate) |> 
     arrange(desc(cut_lo)) |> 
     mutate(level_order = row_number(), 
