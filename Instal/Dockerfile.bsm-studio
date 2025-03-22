@@ -4,6 +4,7 @@
 # Refs: https://github.com/atmoz/sftp
 #
 FROM bsm-studio-paq
+LABEL org.opencontainers.image.source=https://github.com/sferro-besmart/smartmodelv2
 # Chequeo que estoy en el directorio principal. Uno arriba de Instal.
 COPY ./Instal/rstudio-prefs.json /etc/rstudio/rstudio-prefs.json
 COPY ./Instal/FiraCode-Retina.ttf /etc/rstudio/fonts/

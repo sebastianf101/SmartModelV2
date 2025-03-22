@@ -28,11 +28,13 @@ markdown \
 odbc \
 openxlsx \
 pkgload \
+png \
 plyr \
 processx \
 purrr \
 readr \
 readxl \
+reticulate \
 rlang \
 rmarkdown \
 rsample \
