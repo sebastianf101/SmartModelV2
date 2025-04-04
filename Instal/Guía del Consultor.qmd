@@ -231,10 +231,22 @@ Ver @sec-estab-var.
 
 Se establecen los niveles de riesgo según el parámetro **`par_rango_niveles`**. Si este no fue declarado se contruyen los niveles basados en cuantiles y se informa al usuario.
 
-Los niveles se declaran con un grupo de reglas arbitrarias. Las reglas se crean a partir de condiciones básicas `variable [<, >, <=, >=, ==, !=] valor` que se pueden componer con los operadores, `&, |, !` - AND, OR, NOT, respectivamente. Por ejemplo: `score > 950 & Antiguedad > 24`.
+Los niveles se declaran con un grupo de reglas arbitrarias. Las reglas se crean a partir de condiciones básicas `variable [<, >, <=, >=, ==, !=] valor` que se pueden componer con los operadores, `&, |, !` - AND, OR, NOT, respectivamente. 
 
 Se puede indicar la tasa de malos máxima esperada para cada nivel.\
 Esta debe ser creciente según el orden del nivel de riesgo. La tasa de malos mínima está dada por la tasa máxima del nivel anterior. Se define que la tasa de malos observada está **alineada** cuando se encuentra entre la tasa mínima y la tasa máxima esperadas. Si todos los niveles están alineados se valida la alineación de los niveles de Riesgo en la muestra correspondiente.
+
+Por ejemplo: 
+
+| **Nombre Nivel** | **Regla**         | **Tasa de Malos Máxima** |
+|-------------------|-------------------|---------------------------|
+| BajoBajo          | score > 955       | 3.0%                     |
+| BajoMedio         | score > 930       | 6.0%                     |
+| BajoAlto          | score > 895       | 9.0%                     |
+| MedioBajo         | score > 865       | 15.0%                    |
+| MedioMedio        | score > 750       | 18.0%                    |
+| Alto              | score <= 750      | 100.0%                   |
+
 
 #### Variable Segmento {#sec-var-segmento}
 
@@ -456,7 +468,7 @@ Además, luego de 15 minutos desde la última elección del usuarios, se le preg
 
 ### Selección y Transformación de Variables {#sec-sel-var}
 
--   **`par_cor`**: Tras la discretización WoE, se excluyen las variables que tengan una correlación de Pearson (r) con la variable objetivo superior a este límite.
+-   **`par_cor`**: Tras la discretización WoE, se excluyen las variables que tengan una correlación de Pearson (r) superior a este umbral con otra variable candidata de mayor IV.
 
 -   **`par_conf_level`**: Límite para descartar variables por test de Chi-Sq en cada paso del método Forward K.
 
@@ -472,13 +484,16 @@ Además, luego de 15 minutos desde la última elección del usuarios, se le preg
 
 -   **`par_minpts_cat`**: Define el número mínimo de casos necesarios en cada bin para la discretización de variables categóricas. Cuando un grupo tiene menos casos que este parámetro, se fusiona con el grupo "\_Otros". Los nulos se agrupan en el grupo '\_Missings'. Cuando el grupo '\_Otros' o el grupo '\_Missings' tienen menos de `par_minpts_cat` reciben un WoE de cero.
 
--   **`par_nbins1`**: Establece el número de bines utilizados en la primera etapa de la discretización monotónica para las variables numéricas.
+-   **`par_nbins1`**: Establece el número de bines utilizados en la primera etapa de la discretización para las variables continuas.
 
--   **`par_nbins2`**: Define el número de bines en la segunda etapa de la discretización monotónica para las variables numéricas. Los valores nulos se agrupan por separado.
+-   **`par_nbins2`**: Define el número de bines en la segunda etapa de la discretización para las variables continuas. Los valores nulos se agrupan por separado.  
+
+-   **`par_minpts_nulos`**: Cuando el grupo de los valores nulos tiene menos de este límite recibe un WoE de cero. 
+
 
 ### Informes y Análisis de Estabilidad
 
--   **`par_cor_show`**: Este parámetro establece el umbral por encima del cual se muestran las correlaciones entre variables dentro del *modelo*.
+-   **`par_cor_show`**: Este parámetro establece el umbral por encima del cual se muestran las correlaciones entre variables dentro del *modelo*. No tiene efecto si  este valor es igual o mayor a **`par_cor`**. 
 
 -   **`par_iv_cuantiles_gb_min`**: Establece el número mínimo de casos buenos y malos requeridos en cada cuantil para los informes de estabilidad, utilizado para determinar si un cuantil tiene suficientes datos para ser incluido.
 
@@ -486,17 +501,33 @@ Además, luego de 15 minutos desde la última elección del usuarios, se le preg
 
 -   **`par_iv_tot_min`**: Establece el número total mínimo de casos necesarios para los informes de estabilidad.
 
--   **`par_perf_bins`**: Determina el número de cuantiles que se utilizarán en los informes de performance. Se recomiendan cuantiles con por lo menos 100 observaciones de cada clase. Para muestras pequeñas se recomienda 10 ó 5 bines o cuantiles.
+-   **`par_perf_bins`**: Determina el número de cortes del score utilizados en los informes de performance. Los cortes se calculan una sola vez a partir de la muestra de Entrenamiento. Se recomiendan cuantiles con por lo menos 100 observaciones de cada clase. Para muestras pequeñas se recomienda 10 ó 5 bines o cuantiles.  
 
 -   **`par_quick`**: Determina si construir reportes rápidos o nó. Usar 0 para reportes estándar y 1 para versiones abreviadas pero más rápidas de los reportes
 
 -   **`par_vars_segmento`**: Lista de variables necesarias para reportes por Segmento y para el cálculo de Niveles de Riesgo.
 
--   **`par_rango_segmentos`**: Tabla o Rango para reportes por Segmento.
+-   **`par_rango_segmentos`**: Tabla o Rango con definición de Segmento Personalizado. Si se deja en blanco se asume un segmento único para toda la muestra. Ejemplo:
 
--   **`par_rango_niveles`**: Tabla o Rango de Niveles de Riesgo.
+    ```markdown
+    Nombre Segmento    Regla
+    Empleadas          Sexo == 'F' & Tipo_Laboral == 'E'
+    Empleados          Sexo == 'M' & Tipo_Laboral == 'E'
+    Otras              Sexo == 'F' & (is.na(Tipo_Laboral) | Tipo_Laboral != 'E')
+    Otros              Sexo == 'M' & (is.na(Tipo_Laboral) | Tipo_Laboral != 'E')
+    Resto              1 == 1
+    ```
+    
+    - **Notas importantes**:
+        - Al editar prestar atención a las comillas simples o dobles. Algunos autocorrectores las reemplazan por las versiones izquierdas y derechas.
+        - Las condiciones deben ser exhaustivas. La lógica es como los case/when de SQL. Cuando la última condición es verdadera captura lo que queda, pero no es recomendado.
+        - La lógica de las condiciones sigue la sintaxis R. Ver Logical Operators en: [https://www.w3schools.com/r/r_operators.asp](https://www.w3schools.com/r/r_operators.asp).
+        - Para tratar los nulos o missing usar `is.na()`. Ver: [https://www.geeksforgeeks.org/how-to-use-is-na-in-r/](https://www.geeksforgeeks.org/how-to-use-is-na-in-r/).
 
--   **`par_rango_reportes`**: Tabla o Rango de la tabla de Reportes.
+
+-   **`par_rango_niveles`**: Tabla o Rango de Niveles de Riesgo. Ver @sec-niv-riesgo.
+
+-   **`par_rango_reportes`**: Tabla o Rango de la tabla de Reportes. Se genera un reporte por cada combinación de valores de las variables especificadas en cada fila de la Tabla dada hasta una cantidad máxima de `par_cant_reportes`.
 
 -   **`par_times`**: Cantidad de submuestras para bootstrap.
 
