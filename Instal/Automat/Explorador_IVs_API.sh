@@ -171,55 +171,19 @@ pipeline_desa() {
 
     echo "Inicio Tablero de IVs"
     
-    docker exec --user $BSM_USER --workdir $BSM_DIR $BSM_CONTAINER_SERVICE \
-      touch "$BSM_DIR/Trabajo/results_dashboard.log"
-    exit_status_1=$?    
-    # Lanzo el tablero en background.  Sale con wait. 
-    docker exec -it my_r_container Rscript /path/to/plumber.R > output.log 2> error.log
-
-    docker exec --user $BSM_USER --workdir $BSM_DIR $BSM_CONTAINER_SERVICE \
-      quarto serve "Tableros/Explorador_Estab_ivs.qmd" \
-        --log "$BSM_DIR/Trabajo/results_dashboard.log" \
-        --host "0.0.0.0" --port 3838 &
-    exit_status_2=$?    
-    if [ $exit_status_1 -ne 0 ] || [ $exit_status_2 -ne 0 ]; then 
-      echo "Error: Tablero Explorador_Estab_ivs.qmd falló."
-      return 1; 
-    fi    
-    # Abre el tablero y el botón de salir 
-    url="http://localhost:$BSM_DASHBOARD_PORT"
-    while ! is_port_responsive $BSM_DASHBOARD_PORT; do
-      echo "Esperando al tablero en puerto $BSM_DASHBOARD_PORT" 
-      sleep 1 
-    done 
-    echo "Abriendo tablero en $url"    
+    docker exec -it --user $BSM_USER --workdir $BSM_DIR $BSM_CONTAINER_SERVICE \
+      bash -c "Rscript $BSM_DIR/Tableros/Explorador_IVs_API_run.R"
+    exit_status_1=$?
     
-    is_wsl() {
-        grep -qEi "(Microsoft|WSL)" /proc/version &> /dev/null
-        return $?
-    }
-    
-    if is_wsl; then
-        echo "WSL detectado.  Usando powershell"
-        echo "Abriendo tablero en $url"
-        powershell.exe /c start "$url"
-    else
-        echo "WSL no detectado.  Usando xdg-open"
-        xdg-open "$url"
-    fi
-    wait 
-    echo "Cerrando tablero en $url"
-        
-    docker cp $BSM_CONTAINER_SERVICE:$BSM_DIR/Trabajo/results_dashboard.log "$OUTPUT_DIR"/
-    exit_status_1=$?    
     docker exec --user $BSM_USER --workdir $BSM_DIR $BSM_CONTAINER_SERVICE Rscript -e "print('Chau R')"
     exit_status_2=$?    
     if [ $exit_status_1 -ne 0 ] || [ $exit_status_2 -ne 0 ]; then 
-      echo "Error: Fin del Tablero Explorador_Estab_ivs.qmd con fallas!"
+      echo "Error: Fin del Tablero Explorador_IVs_API con fallas!"
       return 1; 
     fi    
     echo "Fin Tablero de IVs"
     return 0
+
 }
 
 source ./Ejecutar_pipeline.sh pipeline_desa
