@@ -17,17 +17,9 @@ Si se cuentan con más de 100 columnas, para un modelado rápido se recomienda n
 
 ### Columnas Especiales
 
-Con los parámetros `par_ids`, `par_target`, `par_var_grupo`, `par_weight` se identifican las columnas identificatorias, objetivo, de agrupamiento y de frecuencia o pesos, respectivamente.
+Con los parámetros `par_ids`, `par_target`, `par_var_grupo`, `par_weight` se identifican las columnas identificatorias, objetivo, de agrupamiento y de frecuencia o pesos, respectivamente. Estas columnas se excluyen de las candidatas.
 
 Con los parámetros `cols_no_predictoras`, `cols_forzadas_a_cat`, `cols_forzadas_a_predictoras` y `cols_nulos_adic` se especifican las listas de columnas excluídas de las candidatas, las candidatas numéricas forzadas a categóricas y la lista de variables con los valores que deben convertirse a nulos, respectivamente.
-
-Los nombres de las columnas deben ser nombres de variables válidos.  Esto es, las variables candidatas deben:
-
-* Comenzar con una letra o punto seguido de una letra. 
-* Contener sólo letras, dígitos, puntos y guiones bajos "_". 
-* No ser palabras reservadas del lenguaje. 
-
-Así `CANT_SITU_3-5_ULT_24` *no* es un nombre válido pero `CANT_SITU_3a5_ULT_24` ó `Cant.situ.3_5.Ult.24` *sí* lo son. 
 
 Consultar el detalle de cada uno de estos parámetros en @sec-cols-espec.
 
@@ -445,69 +437,88 @@ Además, luego de 15 minutos desde la última elección del usuarios, se le preg
 
 ### Columnas Especiales {#sec-cols-espec}
 
--   **`par_ids`**: Columna/s que identifica/n de forma única cada fila. Si se deja vacío, el parámetro crea una variable 'id' que contiene el número de fila.
+En general los nombres de las columnas deben ser nombres de variables válidos.  Esto es, las variables candidatas deben:
 
--   **`par_target`**: Columna con el objetivo del Modelo. Sólo se admiten valores 0 o 1. En base a esta variable se construyen las variables Bad y Good = 1 - Bad.
+* Comenzar con una letra o punto seguido de una letra. 
+* Contener sólo letras, dígitos, puntos y guiones bajos "_". 
+* No ser algunas palabras reservadas del lenguaje como "if" y "function". 
 
--   **`par_weight`**: Columna que indica la frecuencia de la observación, utilizada como ponderación durante el entrenamiento del modelo. Si se deja en blanco, cada fila recibe una ponderación por defecto de 1. Los pesos deben ser no negativos y al menos uno debe ser positivo. Para garantizar la convergencia se recomienda usar pesos enteros constantes para cada valor de par_target. Cuando se cuentan con pocos casos de la clase minoritaria, es útil usar la técnica de `upweighting` [Ref UpW](https://developers.google.com/machine-learning/crash-course/overfitting/imbalanced-datasets).\
-    En los reportes se distingue esta columna con la letra `W`.
+Así `CANT_SITU_3-5_ULT_24` *no* es un nombre válido pero `CANT_SITU_3a5_ULT_24` ó `Cant.situ.3_5.Ult.24` *sí* lo son. 
 
--   **`par_var_grupo`**: Columna que se utiliza para definir grupos o segmentos. Estos se usan para comparar comportamiento y medidas entre grupos. También se usan para construir índices de estabilidad. Si se deja en blanco se usa el valor de la partición.
+Estas restricciones se pueden evitar encerrando los nombres de columna entre tildes inversos, "backticks".  De esta manera, `` `Cant Situ 3+/FIN` `` es un nombre válido.  No obstante, no se recomienda esta práctica. 
 
--   **`cols_no_predictoras`**: Lista de columnas a excluir del listado de variables candidatas. Lista de nombres de variables separadas por comas. Se fuerza la inclusión de las variables identificatorias y objetivo. Se pueden usar por ejemplo para incluir objetivos, ids o grupos alternativos.
+-  **`par_ids`**: Variables que  identifican de forma única cada fila. Si se deja vacío se crea una variable ‘id’ que contiene el número de fila. Estas variables no forman parte del conjunto de variables candidatas.<br>Ejemplo: `par_ids = Documento,  Periodo`<br>Si par_ids vale "Documento", entonces no pueden existir múltiples filas con el mismo valor de Documento.
+Si par_ids vale "Documento, Periodo", entonces pueden existir varias filas con el mismo Documento, pero necesariamente tienen que tener distintos Periodos.
 
--   **`cols_forzadas_a_cat`**: Lista de variables candidatas numéricas forzadas a categóricas. Deben ser disjuntas de las no predictoras.
+-  **`par_target`**: Variable objetivo del Modelo. La variable debe contener sólo valores 0 o 1. En base a esta variable se construyen las variables Bad y Good = 1 - Bad.  El modelo otorgará mayor puntaje a menor tasa estimada de "Malos". Claramente, esta variable no forma parte del conjunto de variables candidatas.<br>Ejemplo: `par_target = BAD`<br>Si en la muestra de desarrollo 900 filas tienen valores de BAD = 0 y 100 filas valores BAD = 1, entonces la tasa de "Malos" será 10% y la tasa de "Buenos" será 90%. <br>Valor predeterminado: BAD
 
--   **`cols_forzadas_a_predictoras`**: Lista de variables candidatas exceptuadas de la selección por bajo IV según **`par_iv`**. Notar que tanto el criterio univariado @sec-sel-univ como la lista **`cols_no_predictoras`** pueden eliminar elementos de esta lista.
+-  **`par_weight`**:  Variable que indica la frecuencia de la observación, utilizada como ponderación durante el entrenamiento del modelo. Si se deja en blanco, cada fila recibe una ponderación por defecto de 1. Los pesos deben ser no negativos y al menos uno debe ser positivo. Para garantizar la convergencia se recomienda usar pesos enteros constantes para cada valor de par_target.<br>Ejemplo: `par_weight = W`<br> Si par_weight vale W, y la variable W vale 1 cuando BAD = 0 y 10 cuando BAD = 1, entonces se aumenta artificialmente diez veces la cantidad de "Malos. 
 
--   **`cols_nulos_adic`**: Lista de nombre_var = valor nulo. Estos valores se convierten a nulos reales. Se suman a los nulos existentes. Se pueden repetir nombres por si hay más de un código para los nulos adicionales. Por ejemplo, "Antiguedad = 0, Ingresos = 0, Limite = 'N/A'".
+-  **`par_var_grupo`**: Variable que se utiliza para definir grupos o segmentos con la finalidad de comparar entre ellos la capacidad predictiva y estabilidad de las varabiles candidatas.  Si se deja en blanco, los grupos quedan definidos por la partición 1_Train, 2_Test, etc.  <br>Ejemplo: `par_var_grupo = Ciclos_Mora`<br>
+Si la variable Ciclos_Mora tiene los valores 0, 1, 2 o 3+, entonces quedan definidos cuatro grupos, dentro de los cuales se mide el comportamiento de las variables candidatas. Por ejemplo, si la variable Antigüedad tiene IV = 5.2 en el grupo 1, IV = 5.1 en el grupo 2, IV = 4.9 en el grupo 3, e IV = 5.0 en el grupo 3+, entonces esa variable tiene un comportamiento independiente del ciclo de mora.
+
+-  **`cols_no_predictoras`**: Lista de variables a excluir del listado de variables candidatas y, por lo tanto, no formarán parte del modelo. <br>Ejemplo: `cols_no_predictoras = BAD2omas, Cliente_Id_alt, Score_externo, Campaña_Id`<br>Se descartan de la lista de variables  candidatas las variables BAD2omas, Cliente_Id_alt, Score_externo, Campaña_Id. El dataset contiene estas variables, pero no son relevantes para el desarrollo del modelo.
+
+-  **`cols_no_predictoras`**:  Ejemplo: `cols_no_predictoras = BAD2omas, Cliente_Id_alt, Score_externo, Campaña_Id` Lista de variables a excluir del listado de variables candidatas y, por lo tanto, no formarán parte del modelo.  BAD2omas, Cliente_Id_alt, Score_externo, Campaña_Id. Se descartan de la lista de variables  candidatas las variables BAD2omas, Cliente_Id_alt, Score_externo, Campaña_Id. El dataset contiene estas variables, pero no son relevantes para el desarrollo del modelo.
+
+-  **`cols_forzadas_a_cat`**: Lista de variables numéricas que se convierten a categóricas o nominales. Al ser consideradas como categóricas, deja de ser relevante la relación de orden o magnitud de sus valores numéricos.  Estas variables no pueden formar parte del conjunto de variables no predictoras ni de las identificadoras. 
+<br>Ejemplo: `cols_forzadas_a_cat = Zona_Nro`<br>Se tratan los valores de Sucursal_Nro = 10 y Sucursal_Nro = 11 como nominales o categóricos sin asumir una relación entre sí.
+Si la variable Zona_Nro identifica cuatro zonas diferentes, por ejemplo, zona 1, zona 2, zona 3 y zona 15, entonces cada valor numérico se toma como una categoría, y ya no importa si 2 es menor a 3, o si 15 es un numero mucho más grande que los otros tres valores.
+
+-  **`cols_forzadas_a_predictoras`**: Lista de variables candidatas  que serán evaluadas por el método ForwardK, independientemente de su capacidad predictiva. No aplica para variables excluidas del modelo o declaradas como identificadoras. <br>Ejemplo: `cols_forzadas_a_predictoras = Tipo_Laboral, Cliente_Antiguedad`<br>Tipo_Laboral, Cliente_Antiguedad se excluyen del filtrado por valor bajo de IV.  De esta manera se fuerzan como candidatas al método ForwardK entran al método ForwardK aunque tengan baja capacidad predictiva.
+
+-  **`cols_nulos_adic`**: Lista de expresiones que hacen referencia a una variable y a un valor. Para los casos en los que la expresión es verdadera, el valor de la variable es reemplazado por el valor nulo, generando así casos nulos adicionales para la variable en cuestión.  Una misma variable puede aparecer en más de una expresión si hay más de un valor no nulo que requiera ser convertido a valor nulo.
+<br>Ejemplo: `cols_nulos_adic = Antiguedad = 0,
+Antiguedad = -1`<br>En la variable Antiguedad, los casos con valores 0 o -1 se convierten a valor nulo.
 
 ### Partición de Datos {#sec-part-datos}
 
--   **`par_split`**: Este parámetro controla como se asignan los filas para entrenamiento o validación. Admite valores no enteros entre 0 y 2. Es decir, admite cualquier número x cuando 0 \< x \< 1 ó 1 \< x \< 2. Si x vale menos que 1 asigna `par_split%` de los casos al azar para el conjunto de entrenamiento y el resto para validación. Si vale más que 1, la muestra completa se asigna a entrenamiento. El conjunto de validación recibe el valor `(par_split-1)%` de los casos al azar y se construye un conjunto de test que recibe el resto de los casos. Por ejemplo, si `par_split` vale 1.7 entonces, se construye el dataset `1_Train` con el 100% de los casos, `2_Test` con el 70% de los casos y `3_Valid` con el 30% restante. Esta partición es apropiada para muestras pequeñas o para realizar el ajuste final ya que permite ajustar con el 100% de los casos pero permitiendo evaluar la estabilidad 'in-sample' al comparar los resultados de `2_Test` vs. `3_Valid`. Tener en cuenta que si se cuentan con más de 100 columnas, para un modelado rápido se recomienda no entrenar con más de 10000 observaciones.
+-  **`par_split`**: Este parámetro controla como se asignan los filas para entrenamiento o validación. Admite cualquier número x siendo 0 < x < 1 ó 1 < x < 2. Si x vale menos que 1, asigna par_split% de los casos al azar para el conjunto de entrenamiento y el resto para prueba. Si vale más que 1, la muestra completa se asigna a entrenamiento. El conjunto de prueba recibe el valor (par_split-1)% de los casos al azar y se construye un conjunto de validación adicional que recibe el resto de los casos. <br>Ejemplo: `par_split = 0.7`<br>Si par_split vale 0.7 entonces, se construye el dataset 1_Train con el 70% de los casos, 2_Test con el 30% de los casos y  y no se construye conjunto de validación.
+Si par_split vale 1.7 entonces, se construye el dataset 1_Train con el 100% de los casos, 2_Test con el 70% de los casos y 3_Valid con el 30% restante.<br>Valor predeterminado: 0.7
 
 ### Selección y Transformación de Variables {#sec-sel-var}
 
--   **`par_cor`**: Tras la discretización WoE, se excluyen las variables que tengan una correlación de Pearson (r) superior a este umbral con otra variable candidata de mayor IV.
+-  **`par_cor`**: Tras la discretización WoE, se excluyen las variables que tengan una correlación de Pearson (r) superior a este umbral con otra variable candidata de mayor IV.<br>Ejemplo: `par_cor = 0.95`<br>Las variables candidatas A y B tienen una correlación de 0.96 e IV de 20 y 30 respectivamente.  Se descarta la variable A. <br>Valor predeterminado: 0.9
 
--   **`par_conf_level`**: Límite para descartar variables por test de Chi-Sq en cada paso del método Forward K.
+-  **`par_conf_level`**: Uso Avanzado. Límite para descartar variables por test de Chi-Sq en cada paso del método Forward K. Cuanto menor es el valor más variables se descartarán. Reservado para uso experto. <br>Ejemplo: `par_conf_level = 0.05`<br>Sólo se seleccionan variables que son significativas al 95% (1-0.05) de confianza. <br>Valor predeterminado: 0.1
 
--   **`par_discret`**: Este ajuste determina si las variables continuas se discretizan utilizando rampas (valor de 1) o una función escalonada (valor de 0). Las fuentes recomiendan dejar este y los siguientes parámetros de discretización sin modificar a menos que se comprenda claramente su función.
+-  **`par_discret`**: Este ajuste determina si las variables continuas se discretizan utilizando rampas (valor de 1) o una función escalonada (valor de 0).<br>Valor predeterminado: 1
 
--   **`par_iv`**: Las variables con un Valor de Información (IV) inferior a este umbral se descartan. El valor de IV se multiplica por 100 para facilitar la lectura, lo que significa que un valor estándar de 0,02 equivale a 2. Ver [Ref IV](https://anikch.medium.com/weight-of-evidence-woe-and-information-value-iv-how-to-use-it-in-eda-and-model-building-3b3b98efe0e8). Se admiten valores entre 0 y 100. Valores típicos oscilan entre 0.5 y 10. 0 descarta el filtro.
+-  **`par_iv`**: Las variables con un Valor de Información (IV) inferior a este umbral se descartan. El valor de IV se multiplica por 100 para facilitar la lectura, lo que significa que un valor estándar de 0,02 equivale a 2.<br>Ejemplo: `par_iv = 2`<br>Se descartan las variables candidatas con valores de IV menores a 2 (0.02). <br>Valor predeterminado: 3
 
--   **`par_maxlevels`**: Establece el número máximo de valores únicos permitidos para las variables categóricas. Si se supera este número no se transforma la variable y se genera un aviso.
+-  **`par_maxlevels`**: Establece el número máximo de niveles o categorías que puede tener una variable categórica.  Si se supera este número la variable no recibe tratamiento, se la excluye la lista de variables candidatas  y se genera un aviso.<br>Ejemplo: `par_maxlevels = 20`<br>La variable Provincia, típicamente tiene 24 niveles o categorías; por lo tanto será excluida, por ser 20, el máximo de niveles permitidos.<br>Valor predeterminado: 50
 
--   **`par_minpts1`**: Especifica el número mínimo de casos necesarios para cada bin en la primera etapa de la discretización.
+-  **`par_minpts1`**: Uso Avanzado. Especifica el número mínimo de casos necesarios para cada bin en la primera etapa de la discretización de variables continuas. <br>Ejemplo: `par_minpts1 = 200`<br>La primera etapa del proceso de discretización de una variable continua, resultará en bines con no menos de 200 casos. <br>Valor predeterminado: 200
 
--   **`par_minpts2`**: Indica el número mínimo de casos necesarios en cada bin para la segunda etapa de la discretización. Este parámetro también se utiliza para determinar si hay suficientes puntos de datos para calcular el WoE para los valores nulos o si se debe asumir que es cero.
+-  **`par_minpts2`**: Uso Avanzado. Especifica el número mínimo de casos necesarios para cada bin en la segunda etapa de la discretización de variables continuas. <br>Ejemplo: `par_minpts2 = 400`<br>La segunda etapa del proceso de discretización de una variable continua, resultará en bines con no menos de 400 casos. <br>Valor predeterminado: 400
 
--   **`par_minpts_cat`**: Define el número mínimo de casos necesarios en cada bin para la discretización de variables categóricas. Cuando un grupo tiene menos casos que este parámetro, se fusiona con el grupo "\_Otros". Los nulos se agrupan en el grupo '\_Missings'. Cuando el grupo '\_Otros' o el grupo '\_Missings' tienen menos de `par_minpts_cat` reciben un WoE de cero.
+-  **`par_minpts_cat`**: Uso Avanzado. Define el número mínimo de casos necesarios en cada bin para la discretización de variables categóricas. Cuando un grupo tiene menos casos que este parámetro, se fusiona con el grupo “_Otros”. Los nulos se agrupan en el grupo ‘_Missings’. Cuando el grupo ‘_Otros’ o el grupo ‘_Missings’ tienen menos de par_minpts_cat reciben un WoE de cero.<br>Ejemplo: `par_minpts_cat = 1500`<br>Si una categoría de una variable tienen menos de 1500 casos, todos esos casos pasan a formar parte del grupo "_Otros", y la categoría se descarta.
+Si finalmente, la categoría "_Otros" queda con menos de 1500, su WoE será 0.
+Lo mismo ocurre para la categoría "_Missing", que contiene todos los casos con valor nulo en la variable que se está analizando.<br>Valor predeterminado: 1500
 
--   **`par_nbins1`**: Establece el número de bines utilizados en la primera etapa de la discretización para las variables continuas.
+-  **`par_nbins1`**: Establece el número de bines utilizados en la primera etapa de la discretización para las variables continuas.<br>Ejemplo: `par_nbins1 = 100`<br>La primera etapa del proceso de discretización de una variable continua resultará en un agrupamiento con 100 bines, no necesariamente del mismo tamaño. <br>Valor predeterminado: 100
 
--   **`par_nbins2`**: Define el número de bines en la segunda etapa de la discretización para las variables continuas. Los valores nulos se agrupan por separado.  
+-  **`par_nbins2`**: Define el número de bines en la segunda etapa de la discretización para las variables continuas. Los valores nulos se agrupan por separado.<br>Ejemplo: `par_nbins2 = 20`<br>La segunda etapa del proceso de discretización de una variable continua resultará en un agrupamiento con 20 bines, no necesariamente del mismo tamaño. <br>Valor predeterminado: 20
 
--   **`par_minpts_nulos`**: Cuando el grupo de los valores nulos tiene menos de este límite recibe un WoE de cero. 
+-  **`par_minpts_nulos`**: Dada una variable continua, el bin que agrupa los casos con valor nulo luego del proceso de discretización, recibe un WoE igual a cero, si ese bin contiene menos casos que la cantidad indicada en el parámetro. <br>Ejemplo: `par_minpts_nulos = 200`<br>Si una variable tiene menos de 200 casos con valor nulo, entonces el WoE correspondiente al bin que los contine vale 0.<br>Valor predeterminado: 200
 
+### Informes y Análisis de Estabilidad {#sec-rep-estab}
 
-### Informes y Análisis de Estabilidad
+-  **`par_cor_show`**: Este parámetro establece el umbral por encima del cual se muestran las correlaciones entre variables dentro del modelo. No tiene efecto si  este valor es igual o mayor al de descartar variables por alta correlación. <br>Ejemplo: `par_cor_show = 0.9`<br>Se reportan pares de variables del modelo con correlación mayor a 0.9.<br>Valor predeterminado: 0.9
 
--   **`par_cor_show`**: Este parámetro establece el umbral por encima del cual se muestran las correlaciones entre variables dentro del *modelo*. No tiene efecto si  este valor es igual o mayor a **`par_cor`**. 
+-  **`par_iv_cuantiles_gb_min`**: Cantidad mínima de casos buenos o de casos malos que debe tener un cuantil de un reporte de estabilidad para que sea considerado con datos suficientes a fin de dar soporte al indicador calculado.Ver sección #sec-estab-var.<br>Valor predeterminado: 100
 
--   **`par_iv_cuantiles_gb_min`**: Establece el número mínimo de casos buenos y malos requeridos en cada cuantil para los informes de estabilidad, utilizado para determinar si un cuantil tiene suficientes datos para ser incluido.
+-  **`par_iv_tot_gb_min`**: Cantidad mínima de casos buenos o de casos malos que debe tener un grupo o segmento de un reporte de estabilidad para que sea considerado con datos suficientes a fin de dar soporte al indicador calculado. Ver sección #sec-estab-var.<br>Valor predeterminado: 200
 
--   **`par_iv_tot_gb_min`**: Define el número total mínimo de casos buenos y malos necesarios para los informes de estabilidad.
+-  **`par_iv_tot_min`**: Cantidad mínima de casos que debe tener un grupo o segmento de un reporte de estabilidad para que sea considerado con datos suficientes a fin de dar soporte al indicador calculado. Ver sección #sec-estab-var.<br>Valor predeterminado: 500
 
--   **`par_iv_tot_min`**: Establece el número total mínimo de casos necesarios para los informes de estabilidad.
+-  **`par_perf_bins`**: Determina el número de cortes del score utilizados en los informes de performance. Los cortes se calculan una sola vez a partir de la muestra de Entrenamiento. Se recomiendan cuantiles con por lo menos 100 observaciones de cada clase, o bien, para muestras pequeñas, deciles, quintiles o cuartiles.  <br>Ejemplo: `par_perf_bins = 10`<br>Luego de creado el modelo de score se parten los scores de la muestra de Entrenamiento en 10 intervalos de tamaño similar.  Se usan estos intervalos para todas las tablas de performance posteriores. <br>Valor predeterminado: 20
 
--   **`par_perf_bins`**: Determina el número de cortes del score utilizados en los informes de performance. Los cortes se calculan una sola vez a partir de la muestra de Entrenamiento. Se recomiendan cuantiles con por lo menos 100 observaciones de cada clase. Para muestras pequeñas se recomienda 10 ó 5 bines o cuantiles.  
-
--   **`par_quick`**: Determina si construir reportes rápidos o nó. Usar 0 para reportes estándar y 1 para versiones abreviadas pero más rápidas de los reportes
+-  **`par_quick`**: Determina si construir reportes rápidos o nó. Usar 0 para reportes estándar y 1 para versiones abreviadas pero más rápidas de los reportes.<br>Ejemplo: `par_quick = 0`<br>Genera los reportes estándar con reportes de variables y estabilidad detallados. Pueden tardar mucho más que los reportes abreviados.  <br>Valor predeterminado: 1
 
 -   **`par_vars_segmento`**: Lista de variables necesarias para reportes por Segmento y para el cálculo de Niveles de Riesgo.
 
--   **`par_rango_segmentos`**: Tabla o Rango con definición de Segmento Personalizado. Si se deja en blanco se asume un segmento único para toda la muestra. Ejemplo:
+-  **`par_rango_segmentos`**:  Tabla con columnas "Nombre Segmento" y "Regla", en la que cada fila define las condiciones (reglas) que deben cumplirse para que un caso sea considerdo en un segmento o en otro. La muestra total queda así segmentada, y se validan los Niveles de Score/Riesgo en cada uno de los segmentos. Si la tabla se deja en blanco se asume un segmento único para toda la muestra. Se pueden usar operadores lógicos y relacionales para construir las condiciones.  AND, OR y NOT se escriben &, |, ! respectivamente.  Los relacionales se escriben <, >, <=, >=, ==, !=.  <br>Ejemplo: `par_rango_segmentos =` 
 
     ```markdown
     Nombre Segmento    Regla
@@ -517,21 +528,39 @@ Además, luego de 15 minutos desde la última elección del usuarios, se le preg
     Otros              Sexo == 'M' & (is.na(Tipo_Laboral) | Tipo_Laboral != 'E')
     Resto              1 == 1
     ```
-    
-    - **Notas importantes**:
-        - Al editar prestar atención a las comillas simples o dobles. Algunos autocorrectores las reemplazan por las versiones izquierdas y derechas.
-        - Las condiciones deben ser exhaustivas. La lógica es como los case/when de SQL. Cuando la última condición es verdadera captura lo que queda, pero no es recomendado.
-        - La lógica de las condiciones sigue la sintaxis R. Ver Logical Operators en: [https://www.w3schools.com/r/r_operators.asp](https://www.w3schools.com/r/r_operators.asp).
-        - Para tratar los nulos o missing usar `is.na()`. Ver: [https://www.geeksforgeeks.org/how-to-use-is-na-in-r/](https://www.geeksforgeeks.org/how-to-use-is-na-in-r/).
+<br>Crea una variable de segmentación nueva con los valores "Empleadas", "Empleados", "Otras", "Otros" y "Resto".  Se evalúan los Niveles de Score/Riesgo para cada uno de estos valores en los reportes de Validación. 
+
+-  **`par_rango_niveles`**: Tabla con columnas "Nombre Nivel'", "Regla" y "Tasa de malos máxima,"en la que cada fila define un Nivel de Score/Riesgo. Cada caso es asignado al primer nivel cuya relga cumple, evalúando cada regla en el orden indicado por "Nombre Nivel". Las reglas se crean a partir de condiciones básicas del tipo 'variable [<, >, <=, >=, ==. !=] valor, que a su vez se pueden combinar con otras condiciones básicas a través de operadores lógicos &&,  ||, ! (and, or, not). La columna "Tasa de malos máxima" permite definir cuál es la tasa de malos que como máximo se espera en cada nivel. Si la tabla se deja en blanco, las reglas quedan definidas por puntos de corte de score de forma tal de obtener 5 niveles distintos, de aproximadamente la misma cantidad de casos cada uno (niveles en quintiles), y se indica en el reporte esta situación. Ver #sec-niv-riesgo.<br>Ejemplo: `par_rango_niveles =` 
 
 
--   **`par_rango_niveles`**: Tabla o Rango de Niveles de Riesgo. Ver @sec-niv-riesgo.
+    ```markdown
+    Nombre Nivel        Regla        Tasa de malos máxima
+    1-BajoBajo        score > 955        3.0%
+    2-BajoMedio        score > 930        6.0%
+    3-BajoAlto        score > 895        9.0%
+    4-MedioBajo        score > 865        15.0%
+    5-MedioMedio        score > 750        18.0%
+    6-Alto        score <= 750        100.0%
+    ```
+<br>Los niveles quedan definidos como:
+1-BajoBajo, que abarca a todos los casos con score mayor a 955, y para el cual se espera una tasa máxima de malos del 3%.
+2-BajoMedio, que abarca a todos los casos con score <= 955 (no cumple la regla anterior) y mayor a 930, y para el cual se espera una tasa máxima del 6%.
+Y de la misma manera, los siguientes niveles.
+Si un caso no cumple ninguna regla, entonces queda asignado al último nivel, según el orden marcado por la columna "Nombre Nivel", en este caso "6-Alto".
+Se indica en el reporte si en algún nivel, la tasa de malos obtenida en la validación supera al valor de "Tasa de malos máxima".
 
--   **`par_rango_reportes`**: Tabla o Rango de la tabla de Reportes. Se genera un reporte por cada combinación de valores de las variables especificadas en cada fila de la Tabla dada hasta una cantidad máxima de `par_cant_reportes`.
+-  **`par_rango_reportes`**:  Tabla en la que cada fila indica una variable categórica o múltiples variables categóricas. Cada categoría de una variable, o cada combinación de categorías de múltiples variables, define un segmento en el cual se evalúa el Nivel de Score/Riesgo. La cantidad de segmentos a reportar está limitado por el valor del parámetro  `par_cant_reportes`.<br>Ejemplo: `par_rango_reportes =` 
 
--   **`par_times`**: Cantidad de submuestras para bootstrap.
+    ```markdown
+    Segmento
+    Sucursal
+    Tipo_Laboral, Es_Cliente
+    ```
+<br>Se genera un reporte de Niveles de Score para cada valor de la variable Segmento (Empleadas, Empleados, Otras, etc.), para cada valor de Sucursal y para cada par de valores de Tipo_Laboral y Es_Cliente. 
 
--   **`par_cant_reportes`**: Máxima cantidad de reportes.
+-  **`par_times`**: Uso Avanzado. Cantidad de submuestras para bootstrap.<br>Ejemplo: `par_times =` `50`<br>Para más información ver #sec-bootstrap<br>Valor predeterminado: 25
+
+-  **`par_cant_reportes`**: Máxima cantidad de segmentos a ser incluidos  en los reportes de Validación.<br>Ejemplo: `par_cant_reportes =` `50`<br>Se reportará la validación en hasta 50 segmentos distintos, aunque los segmentos definidos sean más.<br>Valor predeterminado: 100
 
 ## Códigos de Errores
 

@@ -186,7 +186,7 @@ anulador <- function(data, var, val) {
                           "i" = "Se esperaba {var} numérica o string"))
   
   data |>  
-    mutate("{ var }" := na_if(.data[[var]], new_val))
+    mutate("{ `var` }" := na_if(.data[[var]], new_val))
 }
 
 aplic_nulos_adic <- function(df, nulos_adic) {
