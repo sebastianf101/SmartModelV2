@@ -7,10 +7,13 @@ set +e
 print_help() {
     echo "Tablero de reportes de IV"
     echo "dados Parámetros y reportes de Estabilidad de IVS"
-    echo "Uso: $0 --input-dir <dir-entrada> [--output-dir <dir-salida>] [--help]"
+    echo "Uso: $0 --input-dir <dir-entrada> [--output-dir <dir-salida>] [--user-id <user_id>] [--help]"
     echo "  - En dir-entrada se esperan los archivos" 
     echo "    'Control de SmartModelStudio.xlsx' (ó json), Modelo.zip y opcionalmente Estab_ivs_*.Rdat"
     echo "  - En dir-salida se dejan los logs de salida y errores"    
+    echo "  - Si no se proporciona output-dir se asume igual a input-dir"
+    echo "  - user_id identifica al contenedor subyacente.  Debe ser único por host."
+    echo "  - Si no se proporciona se genera un id al azar."
     echo "  - Si hubo errores este script retorna > 0"
     echo ""
     echo "Proceso normal"
@@ -29,7 +32,6 @@ if [[ "$1" == "--help" || "$1" == "-h" ]]; then
     exit 0
 fi
 
-# Parse named parameters
 while [[ $# -gt 0 ]]; do
     case $1 in
         --input-dir)
@@ -40,14 +42,10 @@ while [[ $# -gt 0 ]]; do
             OUTPUT_DIR="$2"
             shift 2
             ;;
-		--help)
-            print_help
-            exit 1
+        --user-id)
+            USER_ID="$2"
+            shift 2
             ;;
-		--h)
-            print_help
-            exit 1
-            ;;    				
         *)
             echo "Invalid option: $1"
             print_help
@@ -55,6 +53,7 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
 
 # Check if input-dir is given
 if [ -z "$INPUT_DIR" ]; then
@@ -124,8 +123,8 @@ is_port_responsive() {
 # Encapsulo toda la lógica de comandos docker para permitir tres reintentos. 
 # Parece que a veces fallan los cuadernos porque no consigue alocar suficientes recursos. 
 pipeline_desa() {
-    # Variables de entorno aleatorias
-    # BSM_NAME y BSM_PORT
+    # Crean las vars BSM_NAME, BSM_PORT y BSM_DASHBOARD_PORT
+    # Si se proporciona USER_ID se usa para construir BSM_NAME
     source ./envvars_efimeras.sh
 
     source ./compose_up.sh
@@ -138,7 +137,8 @@ pipeline_desa() {
     docker cp "$INPUT_DIR/Modelo.zip" \
       "$BSM_CONTAINER_SERVICE:$BSM_DIR/Trabajo"
     exit_status_2=$?    
-    docker exec "$BSM_CONTAINER_SERVICE" chown "$BSM_USER" \
+    docker exec --user root --workdir $BSM_DIR \
+      "$BSM_CONTAINER_SERVICE" chown "$BSM_USER" \
       "$BSM_DIR/Params/Control de SmartModelStudio.$PARAM_FILE_EXT" \
       "$BSM_DIR/Trabajo/Modelo.zip"   
     exit_status_3=$?    
@@ -158,8 +158,9 @@ pipeline_desa() {
           echo "Copiando $filename en /Trabajo"
           docker cp "$INPUT_DIR/$filename" "$BSM_CONTAINER_SERVICE:$BSM_DIR/Trabajo"
           exit_status_1=$?    
-          docker exec "$BSM_CONTAINER_SERVICE" chown "$BSM_USER" \
-            "$BSM_DIR/Trabajo/$filename"
+              docker exec --user root --workdir $BSM_DIR \
+                "$BSM_CONTAINER_SERVICE" chown "$BSM_USER" \
+                "$BSM_DIR/Trabajo/$filename"
           exit_status_2=$?    
               if [ $exit_status_1 -ne 0 ] || [ $exit_status_2 -ne 0 ]; then 
                 echo "Error: Copia de $filename falló!"
@@ -171,10 +172,9 @@ pipeline_desa() {
 
     echo "Inicio Tablero de IVs"
     
-    docker exec -it --user $BSM_USER --workdir $BSM_DIR $BSM_CONTAINER_SERVICE \
+    docker exec --user $BSM_USER --workdir $BSM_DIR $BSM_CONTAINER_SERVICE \
       bash -c "Rscript $BSM_DIR/Tableros/Explorador_IVs_API_run.R"
     exit_status_1=$?
-    
     docker exec --user $BSM_USER --workdir $BSM_DIR $BSM_CONTAINER_SERVICE Rscript -e "print('Chau R')"
     exit_status_2=$?    
     if [ $exit_status_1 -ne 0 ] || [ $exit_status_2 -ne 0 ]; then 

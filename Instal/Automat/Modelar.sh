@@ -132,10 +132,11 @@ pipeline_modelar() {
     docker cp "$INPUT_DIR/Muestra_Desarrollo.txt" \
       "$BSM_CONTAINER_SERVICE:$BSM_DIR/Datos"
     exit_status_2=$?  
-    docker exec "$BSM_CONTAINER_SERVICE" chown "$BSM_USER:$BSM_USER" \
+    docker exec --user root --workdir $BSM_DIR \
+      "$BSM_CONTAINER_SERVICE" chown "$BSM_USER" \
       "$BSM_DIR/Params/Control de SmartModelStudio.$PARAM_FILE_EXT" \
       "$BSM_DIR/Datos/Muestra_Desarrollo.txt"
-    exit_status_3=$?    
+    exit_status_3=$?        
     if [ $exit_status_1 -ne 0 ] || [ $exit_status_2 -ne 0 ] || [ $exit_status_3 -ne 0 ]; then 
       echo "Error: Fallo en copia de datos de entrada!"
       return 1; 
@@ -144,7 +145,8 @@ pipeline_modelar() {
     echo
     echo "Inicio Cuaderno de Limpieza y Transformación"
     docker exec --user $BSM_USER --workdir $BSM_DIR \
-      $BSM_CONTAINER_SERVICE quarto render "Cuadernos/Clean-Transf.qmd" --log "$BSM_DIR/Trabajo/results_clean_transf.log" #--log-format json-stream
+      $BSM_CONTAINER_SERVICE quarto render "Cuadernos/Clean-Transf.qmd" \
+       --log "$BSM_DIR/Trabajo/results_clean_transf.log" #--log-format json-stream
     exit_status_1=$?
     docker cp $BSM_CONTAINER_SERVICE:$BSM_DIR/Trabajo/results_clean_transf.log "$OUTPUT_DIR"/
     exit_status_2=$?

@@ -147,7 +147,8 @@ pipeline_nueva() {
     docker cp "$INPUT_DIR/Modelo.zip" \
       "$BSM_CONTAINER_SERVICE:$BSM_DIR/Trabajo"
     exit_status_4=$?                    
-    docker exec "$BSM_CONTAINER_SERVICE" chown "$BSM_USER:$BSM_USER" \
+    docker exec --user root --workdir $BSM_DIR \
+      "$BSM_CONTAINER_SERVICE" chown "$BSM_USER" \
       "$BSM_DIR/Params/Control de SmartModelStudio.$PARAM_FILE_EXT" \
       "$BSM_DIR/Datos/Muestra_Desarrollo.txt" \
       "$BSM_DIR/Datos/Muestra_Validación.txt" \
