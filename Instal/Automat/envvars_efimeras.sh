@@ -6,7 +6,6 @@
 # Define the range (MIN_PORT and MAX_PORT)
 MIN_PORT=10000
 MAX_PORT=49151
-
 # Function to check if a port is free
 is_port_free() {
   local port=$1
@@ -45,8 +44,14 @@ fi
 export BSM_PORT=$port
 export BSM_DASHBOARD_PORT=$next_port
 
-# Generate a random string of 10 characters
-export BSM_NAME=$(cat /dev/urandom | tr -dc 'a-z0-9' | fold -w 10 | head -n 1)
+# Si USER_ID está seteado, usalo como nombre
+if [ -n "$USER_ID" ]; then
+  export BSM_NAME=$USER_ID
+else
+  # Fallback: nombre aleatorio si no se pasó USER_ID
+  # Generate a random string of 10 characters
+  export BSM_NAME=$(cat /dev/urandom | tr -dc 'a-z0-9' | fold -w 10 | head -n 1)
+fi
 
 echo "Puerto SM efímero: $BSM_PORT"
 echo "Puerto para Tableros efímero: $BSM_DASHBOARD_PORT"
