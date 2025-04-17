@@ -83,6 +83,7 @@ Datos_muestra <- Datos_muestra |> arrange(across(all_of(.ids)))
 ```
 
 ```{r Set-split}
+set.seed(par_seed)
 if (0 < par_split & par_split < 1) Datos_muestra <- Datos_muestra |> 
   mutate(.part=if_else(runif(n())<=par_split,"1_Train","2_Test"), .after = 1) else 
   if (1 < par_split & par_split <= 2) 

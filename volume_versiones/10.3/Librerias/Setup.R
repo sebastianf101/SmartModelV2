@@ -92,5 +92,7 @@ data_source_scoring_delim_path <- data_source_scoring_delim_path |> fs::path_abs
 
 if (string_has_no_data(par_ids)) {.ids <- '.id'}
 
+# To ensure reproducibility
+par_seed <- 101
 #message("Carga exitosa de Parámetros.")
 
