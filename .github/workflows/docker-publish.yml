@@ -78,7 +78,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: Dockerfile
+          file: Instal/Dockerfile.bsm-studio
           build-args: |
             BASE_IMAGE_REPO=${{ env.BASE_IMAGE_REPO }}
             BASE_IMAGE_VERSION=${{ env.BASE_IMAGE_VERSION }}
