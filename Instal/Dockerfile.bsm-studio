@@ -11,26 +11,6 @@ ARG REPO_SOURCE_URL
 # Use the supplied base image name and version
 # ghcr.io/sferro-besmart/my-rstudio:1.0.1
 FROM ${BASE_IMAGE_REPO}:${BASE_IMAGE_VERSION} AS base
-
-# Ensure arguments have valid values before using them
-RUN if [ -z "$BASE_IMAGE_REPO" ] || [ -z "$BASE_IMAGE_VERSION" ]; then \
-      echo "❌ ERROR: Missing BASE_IMAGE arguments!" >&2; exit 1; \
-    else \
-      echo "✅ Base Image Arguments Validated!"; \
-      echo "🔹 BASE_IMAGE_REPO: $BASE_IMAGE_REPO"; \
-      echo "🔹 BASE_IMAGE_VERSION: $BASE_IMAGE_VERSION"; \
-    fi
-
-# Accept additional build-time arguments (must be defined again after FROM)
-ARG REPO_SOURCE_URL
-
-# Ensure REPO_SOURCE_URL is not empty
-RUN if [ -z "$REPO_SOURCE_URL" ]; then \
-      echo "❌ ERROR: Missing REPO_SOURCE_URL!" >&2; exit 1; \
-    else \
-      echo "✅ Repository Source URL Validated!"; \
-      echo "🔹 REPO_SOURCE_URL: $REPO_SOURCE_URL"; \
-    fi
     
 # Apply metadata labels dynamically
 LABEL org.opencontainers.image.source=${REPO_SOURCE_URL}
