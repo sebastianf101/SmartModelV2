@@ -3,8 +3,14 @@
 # Antes tenía agregado de servidor SSH desde sebastianf101/bsm-studio-paq:v2.2.1 
 # Refs: https://github.com/atmoz/sftp
 #
-FROM bsm-studio-paq
-LABEL org.opencontainers.image.source=https://github.com/sferro-besmart/smartmodelv2
+# Accept build-time arguments without hardcoding values.
+ARG BASE_IMAGE_REPO
+ARG BASE_IMAGE_VERSION=latest
+ARG REPO_SOURCE_URL
+# Use the supplied base image name and version.
+FROM ${BASE_IMAGE_REPO}:${BASE_IMAGE_VERSION}
+# Add a label using the passed source repository URL.
+LABEL org.opencontainers.image.source=${REPO_SOURCE_URL}
 # Chequeo que estoy en el directorio principal. Uno arriba de Instal.
 COPY ./Instal/rstudio-prefs.json /etc/rstudio/rstudio-prefs.json
 COPY ./Instal/FiraCode-Retina.ttf /etc/rstudio/fonts/

@@ -1,18 +1,18 @@
 name: Docker Multi-Build
 
 on:
-  schedule:
-    - cron: '43 15 * * *'
-  push:
-    branches: [ "main" ]
-    tags: [ '*.*.*' ]
-  pull_request:
-    branches: [ "main" ]
+  repository_dispatch:
+    types: [base-image-released]  
+  release:
+    types: [published]            
+  workflow_dispatch:              
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME_PAQ: bsm-studio-paq
-  IMAGE_NAME_STUDIO: bsm-studio
+  IMAGE_NAME: ghcr.io/sferro-besmart/my-rstudio
+  REPO_SOURCE_URL: https://github.com/sferro-besmart/SmartModelV2  
+  BASE_IMAGE_REPO: ghcr.io/sferro-besmart/my-rstudio
+  BASE_GITHUB_REPO: sferro-besmart/my-rstudio
 
 jobs:
   build:
@@ -47,37 +47,54 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract Docker metadata (STUDIO)
-        id: meta_studio
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ github.repository }}
+      - name: Fetch Latest Release Tag from Repo 1 (Base Image)
+        id: get_latest_base_version
+        env:
+          BASE_GITHUB_REPO: ${{ env.BASE_GITHUB_REPO }}
+        run: |
+          echo "Fetching latest release tag from Repo 1 (Base Image)..."
+          VERSION=$(curl -s "https://api.github.com/repos/${BASE_GITHUB_REPO}/releases/latest" | jq -r .tag_name)
+          if [ "$VERSION" = "null" ] || [ -z "$VERSION" ]; then
+            echo "No release found; defaulting to 'latest'."
+            VERSION="latest"
+          fi
+          echo "BASE_IMAGE_VERSION=$VERSION" >> $GITHUB_ENV
+          echo "Using BASE_IMAGE_VERSION=$VERSION"
 
-      - name: Build and push Docker image (PAQ)
+      - name: Fetch Latest Release Tag from Repo 2 (Final Image)
+        id: get_latest_version
+        run: |
+          echo "Fetching latest release tag from Repo 2 (Final Image)..."
+          FINAL_VERSION=$(curl -s "https://api.github.com/repos/${{ github.repository }}/releases/latest" | jq -r .tag_name)
+          if [ "$FINAL_VERSION" = "null" ] || [ -z "$FINAL_VERSION" ]; then
+            echo "No release found; defaulting to 'latest'."
+            FINAL_VERSION="latest"
+          fi
+          echo "FINAL_IMAGE_VERSION=$FINAL_VERSION" >> $GITHUB_ENV
+          echo "Using FINAL_IMAGE_VERSION=$FINAL_VERSION"
+          
+
+      - name: Build and push final image (STUDIO)
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: Instal/Dockerfile.bsm-studio-paq
-          push: false
-          tags: ${{ env.IMAGE_NAME_PAQ }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Build and push Docker image (STUDIO)
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: Instal/Dockerfile.bsm-studio
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta_studio.outputs.tags }}
-          labels: ${{ steps.meta_studio.outputs.labels }}
+          file: Dockerfile
+          build-args: |
+            BASE_IMAGE_REPO=${{ env.BASE_IMAGE_REPO }}
+            BASE_IMAGE_VERSION=${{ env.BASE_IMAGE_VERSION }}
+            REPO_SOURCE_URL=${{ env.REPO_SOURCE_URL }}
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:${{ env.FINAL_IMAGE_VERSION }}
+            ${{ env.IMAGE_NAME }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: Sign the published Docker image
         if: ${{ github.event_name != 'pull_request' }}
         env:
-          TAGS_STUDIO: ${{ steps.meta_studio.outputs.tags }}
-          DIGEST_STUDIO: ${{ steps.build-and-push.outputs.digest }}
+          FINAL_IMAGE: ${{ env.IMAGE_NAME }}:${{ env.FINAL_IMAGE_VERSION }}
         run: |
-          echo "${TAGS_STUDIO}" | xargs -I {} cosign sign --yes {}@${DIGEST_STUDIO}
+          echo "Signing Docker image: ${FINAL_IMAGE}"
+          cosign sign --yes ${FINAL_IMAGE}
+          
