@@ -41,5 +41,9 @@ RUN newusers //etc/security/users.conf.newusers.local
 # Mecanismos de autenticación.  Sin uso. Falta mejorar
 # COPY ./Instal/login.defs /etc/login.defs
 # Funcionó la autenticación por pam_userdb pero no resuelve el user provisioning.  
+# Debug step to show permissions and ownership of the folder
+RUN ls -al /var/data/besmart/Instal/
+# Ensure the script has execute permissions
+RUN chmod +x /var/data/besmart/Instal/Init_users.sh
 # Inicializa los directorios de cada usuario. 
 RUN /var/data/besmart/Instal/Init_users.sh
