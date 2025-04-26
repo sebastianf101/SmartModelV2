@@ -39,12 +39,9 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Authenticate with GitHub CLI
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Check GITHUB_TOKEN Permissions via API
         run: |
-          gh auth login --hostname github.com --with-token <<< "$GITHUB_TOKEN"
-          gh auth status
+          curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/user" | jq .
 
       - name: Log into GitHub Container Registry
         if: github.event_name != 'pull_request'
