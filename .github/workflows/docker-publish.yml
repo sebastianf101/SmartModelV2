@@ -26,7 +26,14 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
+        
+      - name: Check GITHUB_TOKEN Permissions
+        run: curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" https://api.github.com/user | jq .
+        
+      - name: Test GHCR Authentication
+        run: |
+          echo $GITHUB_TOKEN | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+    
       - name: Install Cosign
         if: github.event_name != 'pull_request'      
         uses: sigstore/cosign-installer@v3.8.1
