@@ -27,7 +27,9 @@ En este cuaderno medimos la alineación de los niveles de riesgo en distintos se
 
 "Tab_Coef.Rdat" |> 
   with_working_path() |> 
-  readRDS() |> 
+  readRDS() -> tab.co
+
+tab.co |> 
   filter(Variable!="(Intercept)") |> 
   pull(Variable) -> vars_mod
 
@@ -60,6 +62,11 @@ tab.bins |>
 
 ```{r CargaRangos}
 fs::path(bsm_path, "Scripts/Carga Rangos.R") |> source()
+```
+```{r ActSQL}
+mod_2_sql_source(tab.co, tab.bins) -> sent_sql_new
+#if (sent_sql_new != sent_sql) message("Aviso: Nuevos parámetros agregados en Implementación SQL ")
+sent_sql_new -> sent_sql
 ```
 
 ```{r Load_df_work}

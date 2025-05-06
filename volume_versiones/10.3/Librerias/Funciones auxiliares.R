@@ -1466,6 +1466,14 @@ mod_2_sql_source <- function(par_coef=tab.coef, par_bins=tab.bins,
   if (!string_has_no_data(par_weight)) {
     initial_columns |> c(par_weight) -> initial_columns
   }
+  if (!empty_param(par_rango_reportes)) {
+    par_rango_reportes |> 
+      pull(`Variables de corte`) |> 
+      stringr::str_split(",\\s*") |> 
+      unlist() |> 
+      unique() |> 
+      c(initial_columns) -> initial_columns
+  }  
   initial_columns |> unique() -> initial_columns
   if (!string_has_no_data(cols_nulos_adic)) {
     cols_nulos_adic |> 
@@ -1512,6 +1520,14 @@ csv_2_score <- function(ds_path = data_source_delim_path,
   if (!string_has_no_data(par_vars_segmento)) c(par_vars_segmento, cols_adic) -> cols_adic  
   if (!string_has_no_data(par_var_grupo)) c(par_var_grupo, cols_adic) -> cols_adic  
   if (!string_has_no_data(par_weight)) c(par_weight, cols_adic) -> cols_adic
+  if (!empty_param(par_rango_reportes)) {
+    par_rango_reportes |> 
+      pull(`Variables de corte`) |> 
+      stringr::str_split(",\\s*") |> 
+      unlist() |> 
+      unique() |> 
+      c(cols_adic) -> cols_adic
+  }
   cols_adic |> unique() -> cols_adic
   
   cols_spec <- pluck(spec_adic, "spec_source")
