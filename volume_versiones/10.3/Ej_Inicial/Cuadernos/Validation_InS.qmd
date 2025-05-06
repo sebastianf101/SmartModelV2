@@ -143,13 +143,13 @@ if (sum(tab$q_reps) > par_cant_reportes)
                ">"=cli::col_red("Cod 410"))
 ```
 
-`r if (!par_quick) "### Validación por el método Bootstrap"`
+### Validación por el método Bootstrap
 
-`r if (!par_quick) "#### Reportes"`
+#### Reportes
 
 ```{r}
 #| label: "SubmuestrasTrain"
-#| eval: !expr '!par_quick'
+##| eval: !expr '!par_quick'
 #| 
 if (0 < par_split & par_split < 1) 
   df_work |> rsample::bootstraps(times = par_times, apparent = T) -> bt_rs else 
@@ -158,7 +158,7 @@ if (0 < par_split & par_split < 1)
 
 ```{r ReportesBootstrap}
 #| results: 'asis'
-#| eval: !expr '!par_quick'
+##| eval: !expr '!par_quick'
 #| 
 for(corte in tab_rep$report_name) {
   

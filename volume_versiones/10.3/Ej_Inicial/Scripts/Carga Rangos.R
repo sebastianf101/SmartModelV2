@@ -138,7 +138,18 @@ tryCatch({
     # No convierto stop() a error_custom pq aquí se usa para el caso alternativo        
     stop("Atención: Parámetro par_rango_reportes vacío!")
   load_range(control_file, par_rango_reportes, 
-             c("Variables de corte"), c("report_name"), sheet='Valid')
+             c("Variables de corte"), c("report_name"), sheet='Valid') -> tab
+  # Incorporo Segmento a la tabla de Reportes si fue declarado y no fue incluido manualmente. 
+  tab |> 
+    pull(report_name) |> 
+    map_lgl(~ stringr::str_detect(.x, "\\bSegmento\\b")) |> 
+    any() -> already_seg
+  if (!empty_param(par_rango_segmentos) & !already_seg) {
+    tibble(report_name='Segmento', level_order=1) |> 
+      bind_rows(tab) |> 
+      mutate(level_order = row_number()) -> tab
+  }
+  tab
 }, error = function(e) {
   message(e$message)
   message("Revisar definición de Reportes!")
