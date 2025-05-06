@@ -340,19 +340,21 @@ tab |>
 repKS(tab_all_sql, caption="Validación muestra de desarrollo en SQL", totales = T)
 ```
 
-## Niveles de Riesgo
+## Niveles de Riesgo por Cuantiles
 
 ```{r CargaRangos}
-fs::path(bsm_path, "Scripts/Carga Rangos.R") |> source()
+df.scores |> 
+  filter(.part == '1_Train') |> 
+  mutate(Good=as.numeric(as.character(Good))) |> 
+  select(score, Good, .weight) -> tab
+tab |> tab_niv_default() -> tab_niv_default
 ```
 
 ```{r Load_df_work}
 scores_sql |> 
-  range_2_newvar(tab_niv, "score_niv") |> 
-  range_2_newvar(tab_seg, "Segmento") |> 
+  range_2_newvar(tab_niv_default, "score_niv") |> 
   mutate(bad = target, Good=1-bad) |> 
   mutate(Bad = factor(bad), Good = factor(Good)) -> df_work
-
 ```
 
 ```{r TablaNivelesRiesgo}
@@ -360,7 +362,7 @@ df_work |>
   group_by(score_niv) |> 
   summarise(n=n(), br=mean(bad)) |> 
   mutate(n_p = n/sum(n)) |> 
-  left_join(tab_niv, by = c("score_niv" = "level_name")) |> 
+  left_join(tab_niv_default, by = c("score_niv" = "level_name")) |> 
   arrange(level_order) |> 
   mutate(Alineado = TM_min <= br & br <= TM_max) |> 
   select(level_order, score_niv, rule, n, n_p, TM_min, br, TM_max, Alineado) |> gt() |> 
@@ -373,23 +375,6 @@ df_work |>
   tab_style(cell_text(color = 'red'),locations = cells_body(columns=br, rows = (Alineado==F))) |> 
   opt_row_striping() |> 
   tab_header(title = "Especificación y alineación de niveles de Riesgo")
-```
-
-## Variable Segmento
-
-```{r TablaSegmentos}
-df_work |> group_by(Segmento) |> 
-  summarise(n=n(), br=mean(bad)) |> 
-  mutate(n_p = n/sum(n)) |> 
-  left_join(tab_seg, by = c("Segmento" = "level_name")) |> 
-  arrange(level_order) |> 
-  select(level_order, Segmento, rule, n, n_p) |> gt() |> 
-  cols_label(level_order = "Orden", rule = "Regla", n = "#", n_p = "%",
-             Segmento = "Segmento") |> 
-  fmt_percent(columns = c(n_p), decimals = 1, locale = "es_AR") |> 
-  fmt_integer(level_order) |> 
-  opt_row_striping() |> 
-  tab_header(title = "Especificación y distribución de segmentos")
 ```
 
 ## Apéndice
@@ -471,11 +456,12 @@ if (!fs::file_exists(f.name))
   error_custom("No se logró grabar el archivo {f.name}", 
                ">"=cli::col_red("Cod 121"))
 
-f.name = "tab_niv_y_rel.Rdat" |> with_working_path()
-save(tab_niv, tab_seg, tab_rep, file = f.name)
-if (!fs::file_exists(f.name)) 
-  error_custom("No se logró grabar el archivo {f.name}", 
-               ">"=cli::col_red("Cod 121"))
+# Cambiar por grabación de tab_niv_default como json
+f.name = "tab_niv_default.json" |> with_working_path()
+tab_niv_default |> 
+  select(all_of(c("level_name", "rule", "TM_max"))) -> tab
+colnames(tab) <- c("Nombre Nivel", "Regla", "Tasa de malos máxima")
+tab |> jsonlite::write_json(path=f.name, pretty = TRUE)
 ```
 
 ```{r Save-Zip-Model}
@@ -485,8 +471,8 @@ c(
   "scores.sql" |> with_working_path(), 
   "sent.sql" |> with_working_path(), 
   "Tab_Coef.Rdat" |> with_working_path(), 
-  "tab_niv_y_rel.Rdat" |> with_working_path(),
   "tabPerfOrig.Rdat" |> with_working_path(), 
+  "tab_niv_default.json" |> with_working_path(),
   "VarsContDiscretizadas.Rdat" |> with_working_path(),
   "VarsFactDiscretizadas.Rdat" |> with_working_path(),
   "df_con_scores.csv" |> with_working_path()

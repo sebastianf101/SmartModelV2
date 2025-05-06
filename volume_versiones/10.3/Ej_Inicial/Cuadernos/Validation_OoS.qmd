@@ -492,10 +492,10 @@ if (sum(tab$q_reps) > par_cant_reportes)
                ">"=cli::col_red("Cod 410"))
 ```
 
-`r if (!par_quick) "### Validación por el método Bootstrap."`
+### Validación por el método Bootstrap
 
 ```{r SubmuestrasVal}
-#| eval: !expr '!par_quick'
+##| eval: !expr '!par_quick'
 #| 
 df.scores |> 
   mutate(Target=Bad) |> 
@@ -504,8 +504,8 @@ df.scores |>
 ```
 
 ```{r ReportesBootstrap}
-#| eval: !expr '!par_quick'
 #| results: asis
+##| eval: !expr '!par_quick'
 #| 
 for(corte in tab_rep$report_name) {
   

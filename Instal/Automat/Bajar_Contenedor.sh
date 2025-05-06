@@ -49,5 +49,5 @@ source ./envvars_defaults.sh
 
 echo "Bajando contenedor SM efimero sm-cont-${BSM_NAME}"
 echo "y el servicio provisto en el puerto $BSM_PORT"
-docker compose --file ./config-contenedor-bsm.yml down
+docker compose --file ./config-contenedor-bsm.yml down --remove-orphans 
 echo "Chau SM"
