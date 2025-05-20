@@ -144,7 +144,7 @@ par_init <- function(parameter, value, type, envir) {
             (\(.) assign(x = parameter, value = ., envir = envir))(),
           'string' =  value |> 
             (\(.) assign(x = parameter, value = ., envir = envir))(),
-          'data.frame' =  value |> 
+          'data.frame' =  value |> as_tibble() |> 
             (\(.) assign(x = parameter, value = ., envir = envir))(),
           error_custom('Los tipos admitidos son list, numeric, string o data.frame!', 
                        "i" = "Se obtuvo", type,
