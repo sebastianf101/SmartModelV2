@@ -320,6 +320,19 @@ cat(":::\n")
 
 ## Fin
 
+```{r ActSQLFiles}
+f.name = "scores.sql" |> with_working_path() 
+sent_sql |> readr::write_file(f.name)
+if (!fs::file_exists(f.name)) 
+  error_custom("No se logró grabar el archivo {f.name}", 
+               ">"=cli::col_red("Cod 121"))
+
+f.name = "sent.sql" |> with_working_path() 
+sent_sql |> readr::write_file(f.name)
+if (!fs::file_exists(f.name)) 
+  error_custom("No se logró grabar el archivo {f.name}", 
+               ">"=cli::col_red("Cod 121"))
+```
 
 ```{r Save_tab_niv_y_rel.Rdat}
 f.name = "tab_niv_y_rel.Rdat" |> with_working_path()
@@ -339,6 +352,8 @@ if (!fs::file_exists(f.name))
 ```{r ActModelo.zip}
 "Modelo.zip" |> with_working_path() |> 
   zip(flags = "-ju", files = c(
+  "scores.sql" |> with_working_path(),  
+  "sent.sql" |> with_working_path(),  
   "tab_niv_y_rel.Rdat" |> with_working_path(),
   "Estab_ivs_mod_InS.Rdat" |> with_working_path()
   )) -> res
