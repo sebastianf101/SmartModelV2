@@ -1790,15 +1790,16 @@ bt_rs_2_tab_bt_sum <- function(bt_rs, par_quantiles = c(0.025, 0.5, 0.975),
     tidyr::unnest(cols = c(tab_niv)) -> tab_bt
   tab_bt %>% filter(boot_id=='Apparent') %>% group_by(!!!group_vars_exprs) -> tab
   tab_bt %>% filter(boot_id!='Apparent') %>% group_by(!!!group_vars_exprs, score_niv) %>% 
-    reframe(B_Cuantil=par_quantiles, Tasa_Malos_B=quantile(Tasa_Malos, probs=par_quantiles), 
-            KS_B=quantile(KS, probs=par_quantiles), 
+    reframe(B_Cuantil=par_quantiles, 
+            Tasa_Malos_B=quantile(Tasa_Malos, probs=par_quantiles, na.rm = TRUE), 
+            KS_B=quantile(KS, probs=par_quantiles, na.rm = TRUE), 
             Alineado_B=mean(Alineado)) -> tab_bt_sum
   tab_bt_sum %>% 
     tidyr::pivot_wider(id_cols = c(!!!group_vars_exprs, score_niv, Alineado_B), 
                        names_from = B_Cuantil, values_from = c(Tasa_Malos_B, KS_B)) -> tab_bt_sum
   tab %>% inner_join(tab_bt_sum, by=join_by(!!!group_vars_exprs, score_niv)) -> res
   return(res)
-}   
+}
 
 tab_ref_niv_alin_gt_print <- function(tab_ref, title = 'Modelo Obtenido', 
                                       subtitle = 'Límites para Tasas de malos') {
