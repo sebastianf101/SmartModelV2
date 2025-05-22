@@ -442,7 +442,7 @@ df.scores |>
              level_order = "Orden", rule = "Regla", n = "#", n_p = "%",
              score_niv = "Nivel de Riesgo", br = "Tasa de malos", 
              Alineado = "Tasa alineada",
-             TM_min = gt::html("Tasa de malos<br>m&iacute;e"), 
+             TM_min = gt::html("Tasa de malos<br>m&iacute;nima"), 
              TM_max = gt::html("Tasa de malos<br>m&aacute;xima")) |> 
   fmt_percent(columns = c(n_p, br, TM_min, TM_max), 
               decimals = 1, locale = "es_AR") |> 
