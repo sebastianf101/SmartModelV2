@@ -26,7 +26,8 @@ if (data_source_type == 'DELIM') {
     vroom::vroom(delim = data_source_delim, 
                  col_types = cols(.default = col_character()),
                  escape_double = FALSE,
-                 trim_ws = TRUE, show_col_types = FALSE) -> Datos_Modelo
+                 trim_ws = TRUE, show_col_types = FALSE, 
+                 .name_repair = "universal") -> Datos_Modelo
   )
     
   Datos_Modelo |> 
@@ -460,25 +461,26 @@ De `r length(pred.fac)` variables discretas, `r dis` se incorporaron al conjunto
 
 Ver Apéndice para el listado completo.
 
-```{r Binning_Save, paged.print=FALSE}
-"DF_completo.Rdat" |> with_working_path() -> file_loc
-df |> saveRDS(file = file_loc)
-df$Good <- as.factor(df$Good)
-df$Bad <- as.factor(df$Bad)
-train <- df |> select(ends_with("_g"), .part, .weight, Good,Bad) |> 
-  filter(.part == "1_Train") |> select(-.part)
-vars.pred <- train |> select(-Good) |> colnames()
-```
-
 ```{r tabbins}
 tab.bins <- c(readRDS("VarsContDiscretizadas.Rdat" |> with_working_path()), 
               readRDS("VarsFactDiscretizadas.Rdat" |> with_working_path()))
 tab.ivs <- tab.bins |> map(~tibble(Variable=.$var, IV=.$iv)) |> 
   reduce(bind_rows) |> arrange(desc(IV)) 
+cols_generadas <- tab.bins |> keep(~ .x$generada==1) |> map_chr(~.x$var_gen)
 ```
 
 ```{r tabWoes}
 tab_bins_df <- tab.bins |> tab_woes_cuts()
+```
+
+```{r Binning_Save, paged.print=FALSE}
+"DF_completo.Rdat" |> with_working_path() -> file_loc
+df |> saveRDS(file = file_loc)
+df$Good <- as.factor(df$Good)
+df$Bad <- as.factor(df$Bad)
+train <- df |> select(all_of(cols_generadas), .part, .weight, Good,Bad) |> 
+  filter(.part == "1_Train") |> select(-.part)
+vars.pred <- train |> select(-Good) |> colnames()
 ```
 
 
@@ -551,7 +553,7 @@ if (length(tab) == 0) print('No hay variables categóricas con pérdida de IV en
 ### Correlaciones altas
 
 ```{r corr}
-X.cor <- train |> select(ends_with("_g")) |> 
+X.cor <- train |> select(all_of(cols_generadas)) |> 
   cor() |> as_tibble(rownames="Var1")
 X.cor.df <- tidyr::gather(X.cor, key = "Var2", value = "Cor", -Var1)
 tab <- X.cor.df |> filter(Var1<Var2 & abs(Cor)>par_cor) |> arrange(Var1, Var2)
