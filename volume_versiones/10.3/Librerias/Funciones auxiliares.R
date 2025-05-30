@@ -1194,77 +1194,146 @@ graph_min_sizes <- function(bin_factor_res) {
 # Logistic Forward AK -----------------------------------------------------
 # Ojo que se asume Good y .weight en train!
 # usa parámetro par_conf_level
-logit.step <- function(train, target, verbose = F) { ##function(train, target="Bad6m") {
+logit.step <- function(train, target, verbose = F, 
+                       fmla = as.formula(paste(target, " ~ NULL", sep = ""))) { 
   max.vars <- length(colnames(train)) - 2 # - Good - .weight 
   if (max.vars>0) {
     train2 <- train
     fmla.all <- as.formula(paste(target, " ~ ", 
                                  paste(paste(colnames(train), collapse = "+")), " - ",target, 
                                  " - .weight", sep = ""))
-    fmla <- as.formula(paste(target, " ~ NULL", sep = ""))
     mod.step <- stats::glm(fmla, train2, family = "binomial", 
                            weights = train2$.weight) 
-    coef.step <- mod.step |> broom::tidy() |> select(term, estimate) |>
-      rename(Variable=term, Beta=estimate)
-    idx <- 0
-    names(coef.step) <- c("Variable", paste("Beta.",idx, sep = ""))
+    idx <- 0    
+    coef.step <- mod.step |> broom::tidy() |> 
+      select(term, estimate) |>
+      rename(Variable=term, Beta=estimate) |> 
+      mutate(Paso=idx)
     coef.steps <- coef.step
-    ult.coef <- 1
+    all.coef.positives <- 1
     vars.fwd.res <- c()
     var.sel <- "pp"
-    while (idx <= max.vars && ult.coef > 0 && length(var.sel)>0 && !is.na(var.sel)) {
+    vars.step <- c()
+    while (idx <= max.vars && all.coef.positives > 0 && 
+           length(var.sel)>0 && !is.na(var.sel)) {
       mod.curr <- mod.step
       if (max.vars > mod.curr$df.null - mod.curr$df.residual) {
         vars.fwd <- mod.curr |> add1(scope = fmla.all, test = "Chisq") |> 
           as_tibble(rownames="Variable") |> 
           slice_max(order_by = LRT, n = 10) # Grabo las 10 mejores variables por si hay demasiadas
         var.sel <- vars.fwd  |> 
-          filter(`Pr(>Chi)` < par_conf_level & Variable != "<none>") |> arrange(desc(LRT)) |> 
+          filter(`Pr(>Chi)` < par_conf_level & Variable != "<none>") |> 
+          arrange(desc(LRT)) |> 
           top_n(1,LRT) |> select(Variable) |> pull()
         if (length(var.sel)>0 && !is.na(var.sel)) {
           mod.step <- update(mod.curr, as.formula(paste(".~.+", var.sel)))
           idx <- idx + 1
           # A futuro no renombrar y dejar la salida del tidy que tiene  term estimate std.error statistic  p.value
-          coef.step <- mod.step |> broom::tidy() |> select(term, estimate) |>
-            rename(Variable=term, Beta=estimate)
-          if (verbose) message("Paso ", idx, " Se incorporó variable ", var.sel)          
-          if (coef.step |> filter(Variable!="(Intercept)") |> 
-              select(Beta) |> sign() |> min() > 0) { 
-            ult.coef <- 1
-            # no sé como hacer esto en dplyr
-            names(coef.step) <- c("Variable", paste("Beta.",idx, sep = ""))
-            coef.steps <- coef.steps |> full_join(coef.step, by = "Variable")  
-            vars.fwd.res <- bind_rows(vars.fwd.res, vars.fwd |> mutate(Paso=idx))
-          } else ult.coef <- -1
+          mod.step |> broom::tidy() |> select(term, estimate) |>
+            rename(Variable=term, Beta=estimate) |> 
+            mutate(Paso=idx) -> coef.step
+          coef.step |> 
+            filter(Variable!="(Intercept)") |>   
+            mutate(sign = sign(Beta), 
+                   order=row_number()) -> tab_coef
+          if (all(tab_coef$sign == 1)) { 
+            all.coef.positives <- 1
+            coef.steps <- coef.steps |> bind_rows(coef.step)  
+            vars.fwd.res <- bind_rows(vars.fwd.res, 
+                                      vars.fwd |> mutate(Paso=idx))
+            vars.step <- c(vars.step, var.sel)
+            fmla <- mod.curr$formula
+          } else {
+            # Apareció un coef negativo!
+            # Salvo sólo las positivas anteriores si hay. 
+            tab_coef |> 
+              filter(sign == -1) |> 
+              summarise(first_negative = min(order), 
+                        last_negative = max(order)) -> tab_coef_neg
+            tab_coef_neg |> 
+              pull(first_negative) -> first_negative_coef
+            tab_coef_neg |> 
+              pull(last_negative) -> last_negative_coef            
+            tab_coef |> 
+              filter(order < first_negative_coef) |> 
+              pull(Variable) -> positive_coef_vars
+            tab_coef |> 
+              filter(order >= first_negative_coef) |> 
+              pull(Variable) -> neg_or_after_neg_coef_vars
+            # FwdK elimina la ultima variable con coef negativo de las candidatas 
+            # en el siguiente paso retoma el ajuste quedandose las variables antes 
+            # de la primera negativa
+            tab_coef |> 
+              filter(order == last_negative_coef) |> 
+              pull(Variable) -> var.sel
+            vars.step <- neg_or_after_neg_coef_vars
+            if (verbose) cli::cli_alert_info("Variable {var.sel} eliminada de las candidatas por coeficiente negativo")
+            if (verbose && 
+                (length(neg_or_after_neg_coef_vars) > 1)) cli::cli_alert_danger(
+                  "Se retrocede más de un lugar en el FwdK! Se eliminan {neg_or_after_neg_coef_vars} de la fórmula actual")                     
+            if (length(positive_coef_vars) == 0) {
+              fmla <- as.formula(paste(target, " ~ NULL", sep = ""))
+            } else {
+              fmla <- as.formula(
+                paste(target, "~", 
+                      paste(positive_coef_vars, collapse = " + "), 
+                      sep = " ")
+              ) 
+            }
+            all.coef.positives <- -1            
+          }
         }
         else  {
           var.sel <- NA
-          ult.coef <- 0
+          all.coef.positives <- 0
         }
       }
       else {
         var.sel <- NA
-        ult.coef <- 0
+        all.coef.positives <- 0
       }
     }
-    return(list(ult.coef=ult.coef, idx=idx, var.sel=var.sel, coef.step=coef.step, 
-                coef.steps=coef.steps, mod.curr=mod.curr, ult.list.vars=vars.fwd |>  
-                  filter(Variable != "<none>"), vars.fwd.res=vars.fwd.res))
+    return(list(all.coef.positives=all.coef.positives, idx=idx, 
+                var.sel=var.sel, vars.step=vars.step, 
+                coef.steps=coef.steps, 
+                mod.curr=mod.curr, 
+                fmla=fmla,
+                ult.list.vars=vars.fwd |>  
+                  filter(Variable != "<none>"), 
+                vars.fwd.res=vars.fwd.res))
   }
 }
 
-logit.fwd <- function(train, target, verbose=F) { ##function(train, target="Bad6m") {
+logit.fwd <- function(train, target, verbose=F) { 
   train2 <- train
-  vars.excl <- c()
-  res.step <- logit.step(train2, target)
   idx <- 1
-  while (res.step$ult.coef < 0 && length(res.step$var.sel) > 0 && !is.na(res.step$var.sel)) {
+  vars.excl <- c()
+  vars.ajustes.fwd <- c()
+  res.step <- logit.step(train2, target, verbose=verbose)
+  coef.steps <- res.step$coef.steps |> 
+    mutate(Ajuste=idx)
+  while (res.step$all.coef.positives < 0 && 
+         length(res.step$var.sel) > 0 && 
+         !is.na(res.step$var.sel)) {
+    if (!is.null(res.step$vars.fwd.res) && 
+        nrow(res.step$vars.fwd.res) > 0) {
+      vars.ajustes.fwd <- bind_rows(vars.ajustes.fwd, 
+                                    res.step$vars.fwd.res |> mutate(Ajuste = idx))
+    }
     vars.excl <- c(vars.excl, res.step$var.sel)
     train2 <- train2 |> select(-one_of(res.step$var.sel))
-    res.step <- logit.step(train2, target, verbose) ##logit.step(train2)
+    res.step <- logit.step(train2, target, 
+                           verbose=verbose, 
+                           fmla=res.step$fmla) 
     idx <- idx + 1
+    if (verbose) cli::cli_alert_info("Secuencia Fwd {idx}. Fórmula actual {res.step$fmla}")
+    coef.steps <- bind_rows(coef.steps, 
+                            res.step$coef.steps |> mutate(Ajuste=idx))
   }
-  return(list(vars.excl=vars.excl, det=res.step))
+  
+  return(list(vars.excl=vars.excl, 
+              vars.ajustes.fwd=vars.ajustes.fwd,  
+              coef.steps=coef.steps, det=res.step))
 }
 
 # Generación de SQL ----------------------------------------------------------

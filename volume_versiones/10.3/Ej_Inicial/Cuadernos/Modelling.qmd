@@ -109,26 +109,35 @@ resumen_fwd_gt(res.trad, tab.bins)
 ### Gráfico de evolución de los coeficientes por iteracción.
 
 ```{r}
-res.trad$det$coef.steps %>% select(-2) |>  
-  filter(Variable!='(Intercept)') |>  
-  tidyr::gather(key="Paso", value="Beta", -Variable) |>  
-  filter(!is.na(Beta)) |> 
-  mutate(Paso=as.numeric(stringr::str_sub(Paso,6))) |> 
-  arrange(Paso, Variable) -> tab
-tab |> group_by(Variable) |> summarise(Paso=min(Paso)) |> 
-  inner_join(tab, by = c("Variable", "Paso")) |> 
-  mutate(leyenda=paste(format(Paso, width=3), Variable)) -> tab_anot
-tab |> inner_join(tab_anot |> select(Variable, leyenda), by = "Variable") -> tab 
+res.trad$coef.steps |> 
+  ungroup() |> 
+  filter(Variable != '(Intercept)') |> 
+  filter(Paso > 0) |> 
+  # Quito _g
+  mutate(Variable=stringr::str_sub(Variable, end = -3)) |> 
+  mutate(Orden=consecutive_id(Paso, Ajuste)) -> tab
 
-max(tab$Beta) -> max_beta
-max(tab$Paso) -> max_paso
-res.trad$det$idx*.5 -> altura
-altura + 5 -> ancho
-tab_anot |> 
-  mutate(short_leg = stringr::str_sub(leyenda,1,3)) -> gr_coef_start_labels
 tab |> 
-  filter(Paso==max(Paso)) |> 
-  mutate(short_leg = stringr::str_sub(leyenda,1,3)) -> gr_coef_end_labels
+  # Notar que me asumo el orden implícito y me quedo con la primera aparición
+  distinct(Variable, .keep_all = TRUE) |> 
+  mutate(short_legend=paste(format(Orden, width=3))) |> 
+  mutate(long_legend=paste(short_legend, Variable)) |> 
+  select(Variable, long_legend, short_legend) -> tab_legends 
+
+tab |> 
+  inner_join(tab_legends, by = "Variable") -> tab 
+
+tab |> 
+  group_by(Variable) |> 
+  filter(Orden==min(Orden)) -> gr_coef_start_labels
+
+tab |> 
+  group_by(Variable) |> 
+  filter(Orden==max(Orden)) -> gr_coef_end_labels
+
+# Cantidad de variables que participaron
+max(tab$Orden)*.5 -> altura
+altura + 5 -> ancho
 ```
 
 ```{r coefModeloGraf}
@@ -137,20 +146,23 @@ tab |>
 #| fig.height: !expr altura
 #| 
 tab |> 
-  ggplot(aes(x=Paso, y=Beta, colour=leyenda)) + 
+  ggplot(aes(x=Orden, y=Beta, colour=long_legend)) + 
   theme_bw() + 
   geom_line(linewidth=1.2) + 
   scale_x_continuous(breaks = scales::breaks_width(1), 
                      expand = expansion(add = c(0,1))) +
   scale_y_continuous(breaks = scales::breaks_width(0.1)) +  
   geom_label(data = gr_coef_start_labels, show.legend = FALSE,
-                   mapping = aes(x=Paso, y=Beta, label=short_leg),
+             mapping = aes(x=Orden, y=Beta, label=short_legend),
              position = position_dodge(width = 1)) +
   geom_label(data = gr_coef_end_labels, show.legend = FALSE,
-                   mapping = aes(x=Paso, y=Beta, label=short_leg),
-             position = position_jitterdodge(jitter.height = 0.01,
-                                             dodge.width = 1.5,
-                                             seed = 101)) +  
+            mapping = aes(x=Orden, y=Beta, label=short_legend),
+            # position = position_jitterdodge(jitter.height = 0.01,
+            #                                 dodge.width = 0.05,
+            #                                 seed = 101)) +
+            #position = position_dodge(width = 0.01, preserve='single')
+            position = position_identity()
+            ) +
   guides(colour = guide_legend(title = "Variable", 
                                label.position = "right", ncol = 1)) 
 ```

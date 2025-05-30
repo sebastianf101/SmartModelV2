@@ -537,26 +537,31 @@ resumen_fwd_gt <- function(logit.fwd.res=res.trad, tab_bins=tab.bins) {
     filter(Variable!="(Intercept)") -> vars_mod
   
   logit.fwd.res |> 
-    pluck("det", "vars.fwd.res") |> 
-    group_by(Paso) |> 
+    pluck("vars.ajustes.fwd") |> 
+    group_by(Ajuste, Paso) |> 
     arrange(desc(LRT)) |> 
     mutate(puesto=row_number()) |> 
     filter(puesto |> between(1,3)) |> 
-    select(Paso, puesto, LRT, `Pr(>Chi)`, Variable) -> tab_trios
+    select(Ajuste, Paso, puesto, LRT, `Pr(>Chi)`, Variable) |> 
+    arrange(Ajuste, Paso, puesto) -> tab_trios
   
   tab_trios |> 
-    select(Paso, puesto, Variable) |> 
+    filter(puesto==1) |> 
+    ungroup() |> 
+    mutate(orden=row_number()) |> 
+    arrange(desc(orden)) |> 
+    distinct(Variable, .keep_all = TRUE) |> 
+    arrange(orden) |> 
+    select(Ajuste, Paso, orden, LRT, `Pr(>Chi)`, Variable) -> tab_elegidas 
+  
+  tab_trios |> 
+    select(Ajuste, Paso, puesto, Variable) |> 
     tidyr::pivot_wider(names_from = puesto, values_from = Variable, 
                        names_prefix = "Variable") |> 
     rename(Variable=Variable1) |> 
     ungroup() -> tab_compet
   
-  tab_trios |> 
-    filter(puesto==1) |> 
-    ungroup() |> 
-    select(Paso, LRT, `Pr(>Chi)`, Variable) -> tab_elegidas 
-  
-  tab_bins |> 
+  tab.bins |> 
     map(~tibble(Variable=.$var_gen, IV=.$iv, Tipo=.$type, Sentido=.$sentido)) |> 
     reduce(bind_rows) |> 
     inner_join(vars_mod, by="Variable") |> 
@@ -569,7 +574,10 @@ resumen_fwd_gt <- function(logit.fwd.res=res.trad, tab_bins=tab.bins) {
   
   tab_ivs |> 
     inner_join(tab_elegidas, by = "Variable") |> 
-    inner_join(tab_compet, by = c("Variable", "Paso")) |> 
+    inner_join(tab_compet, by = c("Ajuste", "Paso", "Variable")) |> 
+    # Para no tener que explicar las complejidades de Ajuste y Paso creo Orden
+    arrange(Ajuste, Paso) |> 
+    mutate(Orden=row_number()) |> 
     arrange(desc(IV)) -> tab_fwd_res
   
   tab_2_gt <- function(tab) {
@@ -590,12 +598,12 @@ resumen_fwd_gt <- function(logit.fwd.res=res.trad, tab_bins=tab.bins) {
   
   if (max(tab_trios$puesto)<3) {
     tab_fwd_res |> 
-      select(Variable, IV, flechas, Beta, Paso, `Pr(>Chi)`, LRT) |> 
+      select(Variable, IV, flechas, Beta, Orden, `Pr(>Chi)`, LRT) |> 
       tab_2_gt()
     
   } else {
     tab_fwd_res |> 
-      select(Variable, IV, flechas, Beta, Paso, `Pr(>Chi)`, LRT, Variable2, Variable3) |> 
+      select(Variable, IV, flechas, Beta, Orden, `Pr(>Chi)`, LRT, Variable2, Variable3) |> 
       tab_2_gt() |> 
       cols_label(Variable2=gt::html("Variable<br>competidora 1"), Variable3=gt::html("Variable<br>competidora 2"))
     
