@@ -6,7 +6,13 @@ subtitle: "Validación en Nueva Muestra (\"Out of Sample\")"
 fs::path(bsm_path, "Scripts/Carga Parametros.R") |> source()
 ```
 
-# `r project_title`
+# Proyecto `r project_title`
+
+#### Versión `r project_version`
+
+#### Niveles y Segmentación `r score_levels_version`
+
+#### Archivo `r validation_oos_dataset_name`
 
 ## Introducción
 

@@ -6,7 +6,11 @@ subtitle: "Modelado"
 fs::path(bsm_path, "Scripts/Carga Parametros.R") |> source()
 ```
 
-# `r project_title`
+# Proyecto `r project_title`
+
+#### Versión `r project_version`
+
+#### Archivo `r train_dataset_name`
 
 ```{r Load_CleanData}
 vars.pred.sincor <- 'vars.pred.sincor.rds' |> with_working_path() |> readr::read_rds()
@@ -106,7 +110,7 @@ mod.trad |>
 resumen_fwd_gt(res.trad, tab.bins)
 ```
 
-### Gráfico de evolución de los coeficientes por iteracción.
+### Gráfico de evolución de los coeficientes por iteracción
 
 ```{r}
 res.trad$coef.steps |> 
