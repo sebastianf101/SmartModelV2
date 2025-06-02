@@ -6,7 +6,11 @@ subtitle: "Muestreo, Limpieza y Transformación de Variables"
 fs::path(bsm_path, "Scripts/Carga Parametros.R") |> source()
 ```
 
-# `r project_title`
+# Proyecto `r project_title`
+
+#### Versión `r project_version`
+
+#### Archivo `r train_dataset_name`
 
 ## Introducción
 
