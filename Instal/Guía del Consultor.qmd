@@ -595,6 +595,7 @@ Se indica en el reporte si en algún nivel, la tasa de malos obtenida en la vali
 | 201 | Modelado | Max_Dif |Los scores calculados por la sentencia SQL generada no coinciden con los scores obtenidos del modelo. Posible problema en conversión de tipos ó valores nulos.
 | 202 | Modelado | weight_error | El método ForwardK no convergió. Intentar con valores de par_weight constantes o constantes por cada valor de par_target. |
 | 203 | Modelado | weight_error | El método ForwardK no convergió por causas internas. Reportar el caso. |
+| 204 | Modelado | step_error | FwdK no pudo seleccionar variables! Reportar el caso. |
 | 305 | Init | Setup | Las listas cols_no_predictoras y cols_forzadas_a_cat deben disjuntas. Revisar esos parámetros. |
 | 306 | Init | Setup | Las listas cols_no_predictoras y cols_forzadas_a_predictoras deben disjuntas. Revisar esos parámetros. |
 | 307 | Init | Setup | Parámetros faltantes. Revisar archivo de Control de Parámetros. |

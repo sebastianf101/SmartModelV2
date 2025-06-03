@@ -42,15 +42,24 @@ if (!cnd)
 
 # Ojo con que la lista de parámetros está hardcodeada. La dejo como condición necesaria
 # Del json controlo todo excepto nombre_archivo
-df_Param |> 
-  filter(parameter %in% c("project_version", "score_levels_version", "train_dataset_name", "scoring_dataset_name", "validation_oos_dataset_name", 'par_quick', 'cols_forzadas_a_cat', 'cols_forzadas_a_predictoras', 'cols_no_predictoras', 'cols_nulos_adic', 'data_source_delim', 'data_source_delim_path', 'data_source_odbc_dsn', 'data_source_query', 'data_source_scoring_delim_path', 'data_source_type', 'data_source_val_delim_path', 'keyring_svc_odbc', 'par_cant_reportes', 'par_cor', 'par_cor_show', 'par_discret', 'par_ids', 'par_iv', 'par_iv_cuantiles_gb_min', 'par_iv_tot_gb_min', 'par_iv_tot_min', 'par_maxlevels', 'par_minpts_cat', 'par_minpts1', 'par_minpts2', 'par_nbins1', 'par_nbins2', 'par_perf_bins', 'par_rango_niveles', 'par_rango_reportes', 'par_rango_segmentos', 'par_split', 'par_target', 'par_times', 'par_var_grupo', 'par_vars_segmento', 'par_weight', 'project_title', 'par_minpts_nulos', 'par_conf_level')) |> 
-  summarise(q=n()) |> 
-  mutate(check = (q >= 46)) |> 
-  pull(check) -> cnd 
-if (!cnd)
+c("pirulo", "project_version", "score_levels_version", "train_dataset_name", 
+  "scoring_dataset_name", "validation_oos_dataset_name", 'par_quick', 
+  'cols_forzadas_a_cat', 'cols_forzadas_a_predictoras', 'cols_no_predictoras', 
+  'cols_nulos_adic', 'data_source_delim', 'data_source_delim_path', 
+  'data_source_odbc_dsn', 'data_source_query', 'data_source_scoring_delim_path', 
+  'data_source_type', 'data_source_val_delim_path', 'keyring_svc_odbc', 
+  'par_cant_reportes', 'par_cor', 'par_cor_show', 'par_discret', 'par_ids', 
+  'par_iv', 'par_iv_cuantiles_gb_min', 'par_iv_tot_gb_min', 'par_iv_tot_min', 
+  'par_maxlevels', 'par_minpts_cat', 'par_minpts1', 'par_minpts2', 'par_nbins1', 
+  'par_nbins2', 'par_perf_bins', 'par_rango_niveles', 'par_rango_reportes', 
+  'par_rango_segmentos', 'par_split', 'par_target', 'par_times', 'par_var_grupo', 
+  'par_vars_segmento', 'par_weight', 'project_title', 'par_minpts_nulos', 
+  'par_conf_level') |> setdiff(
+    df_Param$parameter |> unique()
+  ) -> par_lacking
+if (length(par_lacking)>0)
   error_custom('Parámetros faltantes!', 
-               "i" = 'Falta alguno de los siguientes parámetros:',
-               "project_version", "score_levels_version", "train_dataset_name", "scoring_dataset_name", "validation_oos_dataset_name", 'par_quick', 'cols_forzadas_a_cat', 'cols_forzadas_a_predictoras', 'cols_no_predictoras', 'cols_nulos_adic', 'data_source_delim', 'data_source_delim_path', 'data_source_odbc_dsn', 'data_source_query', 'data_source_scoring_delim_path', 'data_source_type', 'data_source_val_delim_path', 'keyring_svc_odbc', 'par_cant_reportes', 'par_cor', 'par_cor_show', 'par_discret', 'par_ids', 'par_iv', 'par_iv_cuantiles_gb_min', 'par_iv_tot_gb_min', 'par_iv_tot_min', 'par_maxlevels', 'par_minpts_cat', 'par_minpts1', 'par_minpts2', 'par_nbins1', 'par_nbins2', 'par_perf_bins', 'par_rango_niveles', 'par_rango_reportes', 'par_rango_segmentos', 'par_split', 'par_target', 'par_times', 'par_var_grupo', 'par_vars_segmento', 'par_weight', 'project_title', 'par_minpts_nulos', 'par_conf_level', 
+               "i" = 'Faltan los siguientes parámetros:', par_lacking,
                ">"=cli::col_red("Cod 307"))
 
 # LoadVarsParam -----------------------------------------------------------

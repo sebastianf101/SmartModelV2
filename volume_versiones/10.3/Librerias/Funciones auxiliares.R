@@ -1308,10 +1308,13 @@ logit.fwd <- function(train, target, verbose=F) {
   train2 <- train
   idx <- 1
   vars.excl <- c()
-  vars.ajustes.fwd <- c()
   res.step <- logit.step(train2, target, verbose=verbose)
-  coef.steps <- res.step$coef.steps |> 
-    mutate(Ajuste=idx)
+  vars.ajustes.fwd <- res.step$vars.fwd.res |> mutate(Ajuste = idx)
+  if (is.null(res.step$vars.fwd.res) || nrow(res.step$vars.fwd.res) == 0)
+    error_custom('Parámetros faltantes!', 
+                 "i" = 'FwdK no pudo seleccionar variables!',
+                 ">"=cli::col_red("204"))
+  coef.steps <- res.step$coef.steps |> mutate(Ajuste=idx)
   while (res.step$all.coef.positives < 0 && 
          length(res.step$var.sel) > 0 && 
          !is.na(res.step$var.sel)) {
