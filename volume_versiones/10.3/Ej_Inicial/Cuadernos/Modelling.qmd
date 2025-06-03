@@ -51,8 +51,6 @@ df_estab_grupo <- file_name |> with_working_path() |> readRDS()
 df$Good <- as.factor(df$Good)
 df$Bad <- as.factor(df$Bad)
 train <- df |> filter(.part == "1_Train") |> select(all_of(vars.pred.sincor), Good, .weight)
-test <- df |> filter(.part == "2_Valid") |> select(all_of(vars.pred.sincor), Good) 
-if (par_split > 1) test_adic <- df |> filter(.part == "3_Test") |> select(all_of(vars.pred.sincor), Good) 
 ```
 
 
