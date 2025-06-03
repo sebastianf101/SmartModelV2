@@ -588,7 +588,9 @@ resumen_fwd_gt <- function(logit.fwd.res=res.trad, tab_bins=tab.bins) {
       fmt_number(columns = c(Beta), decimals = 2) |> 
       fmt_number(columns = c(`Pr(>Chi)`), decimals = 5) |>       
       tab_header(title = "Resumen Pasos") |> 
-      cols_label(Beta=gt::html("Coeficiente<br><em>β</em>"), flechas="Direccion") |> 
+      cols_label(Orden="Paso", 
+                 Beta=gt::html("Coeficiente<br><em>β</em>"), 
+                 flechas="Direccion") |> 
       tab_style(style = cell_text(align = "center", v_align = "middle"), 
                 locations = cells_column_labels()) |> 
       tab_style(style = cell_text(align = "center", v_align = "middle"), 
