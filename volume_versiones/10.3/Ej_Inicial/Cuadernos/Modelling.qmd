@@ -166,7 +166,8 @@ tab |>
             position = position_identity()
             ) +
   guides(colour = guide_legend(title = "Variable", 
-                               label.position = "right", ncol = 1)) 
+                               label.position = "right", ncol = 1)) + 
+  xlab("Paso") # Mantengo la vieja nomenclatura
 ```
 
 
