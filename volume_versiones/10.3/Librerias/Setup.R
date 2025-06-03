@@ -42,7 +42,7 @@ if (!cnd)
 
 # Ojo con que la lista de parámetros está hardcodeada. La dejo como condición necesaria
 # Del json controlo todo excepto nombre_archivo
-c("pirulo", "project_version", "score_levels_version", "train_dataset_name", 
+c("project_version", "score_levels_version", "train_dataset_name", 
   "scoring_dataset_name", "validation_oos_dataset_name", 'par_quick', 
   'cols_forzadas_a_cat', 'cols_forzadas_a_predictoras', 'cols_no_predictoras', 
   'cols_nulos_adic', 'data_source_delim', 'data_source_delim_path', 
