@@ -468,9 +468,14 @@ Ver Apéndice para el listado completo.
 ```{r tabbins}
 tab.bins <- c(readRDS("VarsContDiscretizadas.Rdat" |> with_working_path()), 
               readRDS("VarsFactDiscretizadas.Rdat" |> with_working_path()))
+cols_generadas <- tab.bins |> keep(~ .x$generada==1) |> map_chr(~.x$var_gen)
+if (empty_param(cols_generadas)) 
+  error_custom("x"="No se generó ninguna variable candidata!", 
+      "i"="Relajar restricciones?", 
+      ">"=cli::col_red("Cod 211"))
 tab.ivs <- tab.bins |> map(~tibble(Variable=.$var, IV=.$iv)) |> 
   reduce(bind_rows) |> arrange(desc(IV)) 
-cols_generadas <- tab.bins |> keep(~ .x$generada==1) |> map_chr(~.x$var_gen)
+
 ```
 
 ```{r tabWoes}

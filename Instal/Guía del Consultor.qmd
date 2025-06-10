@@ -596,6 +596,8 @@ Se indica en el reporte si en algún nivel, la tasa de malos obtenida en la vali
 | 202 | Modelado | weight_error | El método ForwardK no convergió. Intentar con valores de par_weight constantes o constantes por cada valor de par_target. |
 | 203 | Modelado | weight_error | El método ForwardK no convergió por causas internas. Reportar el caso. |
 | 204 | Modelado | step_error | FwdK no pudo seleccionar variables! Reportar el caso. |
+| 210 | Modelado | CargaRangos | Los niveles de riesgo por default no están ordenados. Editar los cortes manualmente. |
+| 211 | Modelado | tabbins | No se generó ninguna variable candidata! Relajar restricciones? |
 | 305 | Init | Setup | Las listas cols_no_predictoras y cols_forzadas_a_cat deben disjuntas. Revisar esos parámetros. |
 | 306 | Init | Setup | Las listas cols_no_predictoras y cols_forzadas_a_predictoras deben disjuntas. Revisar esos parámetros. |
 | 307 | Init | Setup | Parámetros faltantes. Revisar archivo de Control de Parámetros. |

@@ -362,7 +362,7 @@ df.scores |>
   filter(.part == '1_Train') |> 
   mutate(Good=as.numeric(as.character(Good))) |> 
   select(score, Good, .weight) -> tab
-tab |> tab_niv_default() -> tab_niv_default
+tab |> tab_niv_default_fct() -> tab_niv_default
 ```
 
 ```{r Load_df_work}

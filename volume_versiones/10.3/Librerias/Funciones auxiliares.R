@@ -259,7 +259,7 @@ safe_cor <- purrr::quietly(~ wCorr::weightedCorr(x=..1, y=..2, weights=..3, meth
 bin.sf <- function(df, nbins, minpts, nvals.min = 5,
                    verbose = F, tol = 10) {
   
-  if (is.null(nbins) | floor(minpts)!=minpts) {
+  if (is.null(nbins) || floor(minpts)!=minpts) {
     msg <- paste("bins.sf: parametros inconsistentes", 
                  "\nNumero de bines nulo?", is.null(nbins), 
                  "\nCasos minimos x bin es entero?", minpts)
@@ -288,26 +288,25 @@ bin.sf <- function(df, nbins, minpts, nvals.min = 5,
   }
   
   # 
-  minbinq <- df |> summarise(q=sum(q)) |> pull(1)
-  minbinq <- max(minpts, ceiling(minbinq/nbins))
   minbinw <- df |> summarise(w=sum(w)) |> pull(1)
   minbinw <- max(minpts, ceiling(minbinw/nbins))
   binlo <- vector(nbins, mode = df[["x"]] |> mode())
   binhi <- vector(nbins, mode = df[["x"]] |> mode())
   binq <- vector(nbins, mode = "integer")
   binw <- vector(nbins, mode = "double")
+  binaw <- cumsum(rep(minbinw, nbins))
   startbin <- TRUE
   k <- 1
-  w <- q <- 0
+  aw <- w <- q <- 0
   for (i in 1:nvals) {
     q <- q + df[[i,"q"]]
     w <- w + df[[i,"w"]]
+    aw <- aw + df[[i,"w"]]
     if (startbin) {
       binlo[k] <- df[[i,"x"]]
       startbin <- FALSE
     }
-    # Cambio a todo por pesos    
-    if (w >= minbinw) {
+    if (aw >= binaw[k] || i >= nvals) {
       # Cierro el bin[k]
       binhi[k] <- df[[i,"x"]]
       binq[k] <- q
@@ -319,11 +318,12 @@ bin.sf <- function(df, nbins, minpts, nvals.min = 5,
   }
   k <- k - 1
   if (!startbin) {
-    # El último bucket no llegó al mínimo, entonces reseteo el actual y lo sumo al anterior
+    # El último bucket no llegó al mínimo
+    # entonces reseteo el actual y lo sumo al anterior
     binhi[k] <- df[[nvals,"x"]]
     binq[k] <- binq[k] + q
     binw[k] <- binw[k] + w
-  } # else el último bucket justo llegó al mínimo. En los dos casos k <- k - 1. 
+  } # else el último bucket justo llegó al mínimo. En los dos casos k <- k - 1.
   binlo <- binlo[1:k]
   binhi <- binhi[1:k]
   binq <- binq[1:k]
@@ -1928,16 +1928,15 @@ range_2_newvar <- function(df, tab_range, newvar) {
   df |> mutate({{newvar}} := case_when(!!!conds))
 }
 
-# Por defecto crea par_tab_niv_nbins - 1 niveles! 
-tab_niv_default <- function(par_df, 
-                            par_tab_niv_nbins = 6, 
-                            par_minpts = par_minpts2) {
+tab_niv_default_fct <- function(par_df, 
+                                par_tab_niv_nbins = 5, 
+                                par_minpts = par_minpts2) {
   # Uso:
   # df.scores |> 
   #   filter(.part == '1_Train') |> 
   #   mutate(Good=as.numeric(as.character(Good))) |> 
   #   select(score, Good, .weight) -> tab
-  # tab |> tab_niv_default()
+  # tab |> tab_niv_default_fct()
   # # A tibble: 5 × 5
   # level_name rule         TM_max level_order TM_min
   # <chr>      <chr>         <dbl>       <int>  <dbl>
@@ -1977,19 +1976,22 @@ tab_niv_default <- function(par_df,
                           paste('score <', cut_last), 
                           paste('score >=', cut_lo))) -> tab_niv
   
+  check_sorted_score_levels(tab_niv |> pull(TM)) -> chk_br
+  
+  tab_niv |>
+    filter(level_order == max(level_order)) |> 
+    mutate(check = (orden == 1)) |> 
+    pull(check) -> chk_orden1
+  
   # Chequeo de tabla
   # La tasa debe ser creciente y 
   # el peor nivel debe ser orden 1
   # Así se verifica la equivalencia entre cut_lo y orden
-  assertthat::assert_that(
-    tab_niv |> pull(TM) |> check_sorted_score_levels(),
-    tab_niv |>
-      filter(level_order == max(level_order)) |> 
-      mutate(check = (orden == 1)) |> 
-      pull(check), 
-    msg = "Fallo al crear niveles de riesgo por default! Crearlos manualmente!"
-  )
-  
+  if (!chk_br || !chk_orden1)
+    cli::cli_warn(c(
+      "x" = "Los niveles de riesgo por default no están ordenados!", 
+      "i" = "Crear los niveles manualmente!",
+      ">"=cli::col_red("Cod 210")))
   
   tab_niv |> 
     select(level_name, rule, TM_max, level_order, TM_min) -> tab_niv
