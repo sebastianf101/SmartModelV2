@@ -1757,10 +1757,12 @@ skim_2_excel <- function(res, par_file_name=file_name) {
   wb <- openxlsx::write.xlsx(x = res_part |> map(~ as_tibble(.x) |> rename(variable=skim_variable)),  
                              file = par_file_name, asTable = T, tableStyle = "TableStyleLight9", 
                              overwrite = T, creator = 'BeSmart', 
-                             startRow = 5, startCol = 1, gridLines = F)
+                             startRow = 1, startCol = 1, gridLines = F)
   res |> count(skim_type) |> pull(skim_type) -> sk_types
   sk_types |> walk(~ openxlsx::setColWidths(wb = wb, sheet = .x, 
                                             cols = 1:20, widths = 'auto'))
+  sk_types |> walk(~ openxlsx::freezePane(wb = wb, sheet = .x, 
+                                          firstRow = TRUE))
   openxlsx::addWorksheet(wb, sheetName = 'Gral', gridLines = F)
   openxlsx::activeSheet(wb) <- "Gral"
   openxlsx::addStyle(wb = wb, sheet = 'Gral',  style = Boldstyle, rows = 1:4, cols = 1, gridExpand = T)
@@ -2105,7 +2107,7 @@ my_skim <- skimr::skim_with(
   numeric = skimr::sfl(
     avg = ~ mean(.x, na.rm = T), 
     sd = ~ sd(.x, na.rm = T),
-    min = ~ min(.x, na.rm = T),
+    min = ~ min_na(.x),
     p01 = ~ quantile(.x, probs = .01, na.rm = T),
     p05 = ~ quantile(.x, probs = .05, na.rm = T),    
     p25 = ~ quantile(.x, probs = .25, na.rm = T),    
@@ -2113,9 +2115,10 @@ my_skim <- skimr::skim_with(
     p75 = ~ quantile(.x, probs = .75, na.rm = T),        
     p95 = ~ quantile(.x, probs = .95, na.rm = T),        
     p99 = ~ quantile(., probs = .99, na.rm = T),
-    max = ~ max(.x, na.rm = T),
+    max = ~ max_na(.x),
     hist = ~ skimr::inline_hist(.x, n_bins = 8) # Parametrizar?
   ), 
   append = F
 ) 
+
 
