@@ -329,9 +329,16 @@ bin.sf <- function(df, nbins, minpts, nvals.min = 5,
   binq <- binq[1:k]
   binw <- binw[1:k]
   
-  # Al realizar un round(x, tol) al ppio puedo excluir casos. Corrijo los extremos para que no suceda.
-  binlo[1] <- binlo[1] - 10^(-tol)
+  # Al realizar un round(x, tol) al ppio puedo excluir casos. 
+  # Corrijo los extremos para que no suceda.
+  #binlo[1] <- binlo[1] - 10^(-tol)
+  # SF, 202507.  Corrijo todos los extremos izquierdos.  
+  # dejo como estaba la correción sólo del último extremo derecho.
+  # Porque sólo se usan los izquierdos
+  # Así lo <= x < lo sig a pesar de los errores de redondeo posibles.
+  binlo <- binlo - 10^(-tol)
   binhi[k] <- binhi[k] + 10^(-tol)
+  
   
   tibble(binlo = binlo, binhi = binhi, binq = binq, binw = binw) -> bins
   
