@@ -1231,7 +1231,8 @@ logit.step <- function(train, target, verbose = F,
         var.sel <- vars.fwd  |> 
           filter(`Pr(>Chi)` < par_conf_level & Variable != "<none>") |> 
           arrange(desc(LRT)) |> 
-          top_n(1,LRT) |> select(Variable) |> pull()
+          slice_head(n = 1) |> 
+          select(Variable) |> pull()
         if (length(var.sel)>0 && !is.na(var.sel)) {
           mod.step <- update(mod.curr, as.formula(paste(".~.+", var.sel)))
           idx <- idx + 1
