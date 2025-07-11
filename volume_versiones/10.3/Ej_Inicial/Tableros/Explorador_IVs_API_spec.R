@@ -77,6 +77,42 @@ function(report, variable) {
   plot |> plotly::as_widget()
 }
 
+#* @param report Nombre del reporte
+#* @param variable Variable del reporte
+#* @param width Desired width in pixels
+#* @param height Desired height in pixels
+#* @param resolution Resolution (ppi)
+#* @serializer contentType list(type = "image/png")
+#* @get /static_plot
+function(report, variable, width = 2540, height = 1600, resolution = 300) {
+  variable -> par_variable
+  reports_list[[report]] |>
+    pluck('xvars') |>
+    filter(variable == par_variable) |>
+    mutate(var_name = paste(variable, 'en', valor_grupo)) |>
+    rename(direction = sentido) |>
+    select(tipo, variable, valor_grupo, var_name, direction, iv_tab) -> table
+  
+  table |> pluck('tipo', 1) -> var_type
+  
+  if (var_type == 'Continua') {
+    table |> iv_grouped_tab_cont_2_plot() -> p
+  } else {
+    table |> iv_grouped_tab_categ_2_plot() -> p
+  }
+  
+  # Manually open PNG device with custom size
+  tmp <- tempfile(fileext = ".png")
+  png(tmp, width = as.numeric(width), 
+      height = as.numeric(height), units = "px", 
+      res = as.numeric(resolution))
+  print(p)
+  dev.off()
+  
+  # Return raw image bytes
+  readBin(tmp, "raw", file.info(tmp)$size)
+}
+
 #* Retorna tabla html de variable y grupos elegida
 #* @param report nombre del reporte
 #* @param variable variable del reporte
