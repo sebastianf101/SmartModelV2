@@ -1408,6 +1408,10 @@ drift_x_bines <- function(df, tipo, col, col_agrup, woes_breaks,
                           woe_nulos, sentido, tab_iv_ref, 
                           var_grupo=var_grupo, grupos=grupos, detailed=detailed) {
   
+  # Uso una tolerancia por errores de redondeo al leer csv y usar SQL. 
+  # WoE en tab_nue puede tener algunas diferencias. 
+  TOL <- .Machine$double.eps^0.5 # 1.49e-08
+  
   df |> 
     select(.weight, all_of(c(var_grupo, col, col_agrup))) -> df 
   
@@ -1423,9 +1427,10 @@ drift_x_bines <- function(df, tipo, col, col_agrup, woes_breaks,
                                         "El mínimo fue:", mn_nonulos, "y se esperaba", woes_breaks[1]))
     min(woes_breaks[1], mn_nonulos) ->  woes_breaks[1]
     
+    # + TOL, garantiza superar los errores de redondeo que provienen del SQL
     df |> 
       filter(!is.na(.data[[col]])) |> 
-      mutate(bin_woe=cut(.data[[col_agrup]], woes_breaks, include.lowest = T, 
+      mutate(bin_woe=cut(.data[[col_agrup]] + TOL, woes_breaks, include.lowest = T, 
                          ordered_result = T, right=F, 
                          labels = NULL)) -> df_nonulos
     
@@ -1464,9 +1469,10 @@ drift_x_bines <- function(df, tipo, col, col_agrup, woes_breaks,
       rename(CntRecRef = CntRec, PctRecRef = PctRec) |> 
       mutate(PctRecRef = PctRecRef/100) -> tab_ref
     
+    # Está bien drop porque las pérdidas se reflejan en los porcentajes
     tab_ref |> 
       right_join(tab_nue, by = join_by(bin_woe),
-                 unmatched = 'error', 
+                 unmatched = 'drop', 
                  relationship = 'one-to-many') |> 
       arrange(.data[[var_grupo]], orden) |> 
       select(-orden, -bin_woe) -> tab_res
@@ -1490,10 +1496,6 @@ drift_x_bines <- function(df, tipo, col, col_agrup, woes_breaks,
       # Ojo que asume PctRec en escala 0-100.
       rename(CntRecRef = CntRec, PctRecRef = PctRec) |> 
       mutate(PctRecRef = PctRecRef/100) -> tab_ref
-    
-    # Uso una tolerancia por errores de redondeo al leer csv y usar SQL. 
-    # WoE en tab_nue puede tener algunas diferencias. 
-    TOL <- .Machine$double.eps^0.5 # 1.49e-08
     
     tab_nue |> 
       inner_join(
