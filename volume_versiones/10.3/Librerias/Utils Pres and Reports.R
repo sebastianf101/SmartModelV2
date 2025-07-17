@@ -632,27 +632,19 @@ det_ivs_cont <- function(var_names, tipo_discr="stp", par_tab.bins=tab.bins) {
               direct_ivs=var_direction))
 }
 
-det_ivs_cont_gt <- function(var_names, var_ivt) {
-  df_ivs <- var_ivt |> tibble::enframe() |> tidyr::unnest(cols = "value")
-  tabla_gt <- df_ivs |>
-    gt(groupname_col = 'name', locale = 'es-AR') |>
-    tab_header(title = 'Discretización de variables x WoE') |> 
-    tab_options(table.font.size = pct(80), container.width = px(1000),
-                table.width = pct(100)) |> 
-    fmt_number(c('orden'), decimals = 1,  # Recordar que los nulos tienen decimal .5
-               suffixing = T, drop_trailing_zeros = T) |> 
-    fmt_number(c('cut_lo', 'cut_median', 'cut_hi'), n_sigfig = 3,
-               suffixing = T, drop_trailing_zeros = T) |>
-    fmt_number(c('WoE', 'woe_est_lo', 'woe_est_hi'), n_sigfig = 3, suffixing = T, 
-               drop_trailing_zeros = T) |>
-    fmt_number(c('IV'), n_sigfig = 2, suffixing = T, drop_trailing_zeros = T) |>
-    fmt_percent(c('PctRec', 'PctGood', 'PctBad', 'BadRate'), decimals = 1, scale = F) |>
-    cols_label(col_agrup = 'Rango', bin_woe='Rango (WoE)',  woe_est_lo='Min (WoE)', woe_est_hi='Max (WoE)', 
-               cut_lo = 'Min', cut_median = 'Mediana', cut_hi = 'Max',
-               CntRec = '# Obs', CntGood = '# Buenos', CntBad = '# Malos',
-               PctRec = '% Obs', PctGood = '% Buenos', PctBad = '% Malos') |>
-    sub_missing(columns = everything())
-  return(tabla_gt)
+det_ivs_cont_gt <- function(nom_ivs, tab_ivs) {
+  gt_group() -> tables 
+  
+  nom_ivs |> order() -> index
+  for (i in index) 
+    tables |> 
+    grp_add(
+      det_iv_cont_gt(
+        tab_ivs[[i]], 
+        nom_ivs[[i]]
+      )
+    ) -> tables
+  return(tables)
 }
 
 det_iv_cont_gt <- function(ivt, title) {
@@ -710,28 +702,19 @@ det_iv_categ_gt <- function(ivt, title) {
   return(tabla_gt)
 }
 
-det_ivs_categ_gt <- function(var_names, var_ivt) {
-  df_ivs <- var_ivt |> tibble::enframe() |> tidyr::unnest(cols = "value")
-  tabla_gt <- df_ivs |> 
-    mutate(WoE_anulado = as.logical(WoE_anulado)) |>
-    gt(groupname_col = 'name', locale = 'es-AR') |> 
-    tab_options(table.font.size = pct(80), container.width = px(1000),
-                table.width = pct(100)) |> 
-    tab_header(title = 'Discretización de variables x WoE') |> 
-    cols_move_to_end('groups') |> 
-    fmt_number(c('WoE','WoE_datos'), n_sigfig = 3, suffixing = T, drop_trailing_zeros = T) |> 
-    fmt_number(c('IV'), n_sigfig = 2, suffixing = T, drop_trailing_zeros = T) |> 
-    fmt_percent(c('PctRec', 'PctGood', 'PctBad', 'BadRate'), decimals = 1, scale = F) |> 
-    cols_label(Cutpoint = 'Grupo', groups = 'Integrantes', 
-               CntRec = '# Obs', CntGood = '# Buenos', CntBad = '# Malos', 
-               PctRec = '% Obs', PctGood = '% Buenos', PctBad = '% Malos') |> 
-    tab_style(
-      style = cell_text(color = "red"),
-      locations = cells_body(
-        columns = WoE_anulado,
-        rows = WoE_anulado == TRUE)) |>     
-    sub_missing(columns = everything())
-  return(tabla_gt)
+det_ivs_categ_gt <- function(nom_ivs, tab_ivs) {
+  gt_group() -> tables 
+  
+  nom_ivs |> order() -> index
+  for (i in index) 
+    tables |> 
+    grp_add(
+      det_iv_categ_gt(
+        tab_ivs[[i]], 
+        nom_ivs[[i]]
+      )
+    ) -> tables
+  return(tables)
 }
 
 iv_tab_cont_2_plot <- function(var_name, iv_tab, direction) {

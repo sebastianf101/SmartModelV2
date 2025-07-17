@@ -361,8 +361,8 @@ En esta sección evaluaremos la estabilidad de las variables por dos métodos.
 
 En el primer método evaluamos la estabilidad de la distribución de la variable comparando los bines -distribución empírica- en la muestra de Entrenamiento y los bines en la nueva Muestra. Llamamos a los bines obtenidos en la muestra de Entrenamiento la distribución de referencia. 
 
-En algunos reportes comparamos la distribución de referencia con la distribución en la muestra de Desarrollo completa, 'Orig'. Esto nos permite identificar que medidas son *no significativos*. 
-Si las medidas de 'Nueva' muestra son muy superiores a las de 'Orig' es probable que la variable no sea estable. 
+En algunos reportes comparamos la distribución de referencia con la distribución en la muestra de Desarrollo completa, que llamamos 'Orig'. Esto nos permite identificar que medidas son *no significativas*. 
+Si las medidas de la 'Nueva' muestra son muy superiores a las de 'Orig' es probable que la variable no sea estable. 
 
 Usamos dos medidas: la clásica medida PSI, -Population Stability Index- [Ref PSI](https://en.wikipedia.org/wiki/Kullback%E2%80%93Leibler_divergence#Symmetrised_divergence) y la norma L-infinito, que es la usada en Tensorflow: [Ref TF](https://www.tensorflow.org/tfx/guide/tfdv#drift_detection).
 
