@@ -66,6 +66,15 @@ tab.bins |>
 
 ```
 
+
+```{r}
+#| label: "LoadEstabMod"
+#| eval: !expr '!par_quick'
+file_name <- "Estab_ivs_mod_InS.Rdat"
+df_estab_Part <- file_name |> with_working_path() |> readRDS()
+```
+
+
 ```{r CargaRangos}
 fs::path(bsm_path, "Scripts/Carga Rangos.R") |> source()
 ```
@@ -183,14 +192,6 @@ for(corte in tab_rep$report_name) {
 ```
 
 `r if (!par_quick) "## IVs"`
-
-```{r IVs}
-# Ojo que queda incluso si es quick!
-df_work |> 
-  select(all_of(.ids), .weight, .part, .grupo, Good, Bad, bad, all_of(vars_mod), 
-         all_of(vars_mod |> stringr::str_remove("_g$"))) |> 
-  estab_x_grupo('.part', cortes, detailed = TRUE) -> df_estab_Part
-```
 
 `r if (!par_quick) "### Continuas"`
 
@@ -347,21 +348,12 @@ if (!fs::file_exists(f.name))
   error_custom("No se logró grabar el archivo {f.name}")
 ```
 
-
-```{r Save_Estab_ivs}
-f.name = "Estab_ivs_mod_InS.Rdat" |> with_working_path()
-df_estab_Part |> write_rds(f.name)
-if (!fs::file_exists(f.name)) 
-  error_custom("No se logró grabar el archivo {f.name}")
-```
-
 ```{r ActModelo.zip}
 "Modelo.zip" |> with_working_path() |> 
   zip(flags = "-ju", files = c(
   "scores.sql" |> with_working_path(),  
   "sent.sql" |> with_working_path(),  
-  "tab_niv_y_rel.Rdat" |> with_working_path(),
-  "Estab_ivs_mod_InS.Rdat" |> with_working_path()
+  "tab_niv_y_rel.Rdat" |> with_working_path()
   )) -> res
 if (!(res == 0)) 
   error_custom("Fallo al actualizar Modelo.zip! Cod zip: {res}")

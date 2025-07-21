@@ -296,6 +296,15 @@ if (par_split > 1)
   repKS(tab.valid, caption="Validación Modelo Logístico en Valid In-Sample", totales = T)
 ```
 
+```{r Estab_Vars_Mod}
+tab.bins |> 
+  keep(~ .x |> pluck('var_gen') %in% vars_mod) |>  
+  tab_woes_cuts() -> cortes
+ 
+df |>
+  estab_x_grupo('.part', cortes, detailed = TRUE) -> df_estab_Part
+```
+
 ## Verificación de implementación SQL
 
 ```{r Verif_Implement_SQL}
@@ -479,6 +488,14 @@ colnames(tab) <- c("Nombre Nivel", "Regla", "Tasa de malos máxima")
 tab |> jsonlite::write_json(path=f.name, pretty = TRUE)
 ```
 
+
+```{r Save_Estab_ivs}
+f.name = "Estab_ivs_mod_InS.Rdat" |> with_working_path()
+df_estab_Part |> write_rds(f.name)
+if (!fs::file_exists(f.name)) 
+  error_custom("No se logró grabar el archivo {f.name}")
+```
+
 ```{r Save-Zip-Model}
 f.name = "Modelo.zip" |> with_working_path() 
 c(
@@ -490,7 +507,8 @@ c(
   "tab_niv_default.json" |> with_working_path(),
   "VarsContDiscretizadas.Rdat" |> with_working_path(),
   "VarsFactDiscretizadas.Rdat" |> with_working_path(),
-  "df_con_scores.csv" |> with_working_path()
+  "df_con_scores.csv" |> with_working_path(),
+  "Estab_ivs_mod_InS.Rdat" |> with_working_path()
 ) -> file_list
 if (!par_quick) 
   c(file_list, "Estab_ivs_cand_InS.Rdat" |> with_working_path()) -> file_list
