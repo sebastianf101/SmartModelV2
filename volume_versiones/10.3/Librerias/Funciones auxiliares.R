@@ -1894,10 +1894,19 @@ load_range <- function(file, range, col_names, new_col_names, sheet='Valid') {
 # Ej Uso
 # tab_niv |> pull(max_allow_bad_rate) |> check_sorted_score_levels()
 check_sorted_score_levels <- function(br) {
-  assertthat::assert_that(!anyNA(br), msg = "Hay tasas de malo vacías!")
-  assertthat::assert_that(!is.unsorted(br, strictly = TRUE), msg = "Las tasas de malos deben ser crecientes!")
-  assertthat::assert_that(last(br) <= 1, msg = "Las peor tasa debe ser <= 1. En formato % es 100%.")
-  assertthat::assert_that(first(br) > 0, msg = "Las mejor tasa debe ser > 0.")
+  result <- list(status = "success", msg = "")
+  
+  if (anyNA(br)) {
+    result <- list(status = "error", msg = "Hay tasas de malo vacías!")
+  } else if (is.unsorted(br, strictly = TRUE)) {
+    result <- list(status = "error", msg = "Las tasas de malos deben ser crecientes!")
+  } else if (last(br) > 1) {
+    result <- list(status = "error", msg = "Las peor tasa debe ser <= 1. En formato % es 100%.")
+  } else if (first(br) <= 0) {
+    result <- list(status = "error", msg = "Las mejor tasa debe ser > 0.")
+  }
+  
+  return(result)
 }
 
 # Ej Uso
@@ -1986,6 +1995,13 @@ tab_niv_default_fct <- function(par_df,
   
   check_sorted_score_levels(tab_niv |> pull(TM)) -> chk_br
   
+  if (chk_br$status == "error")
+    cli::cli_warn(c(
+      "x" = "Los niveles de riesgo por default no verifican:", 
+      chk_br$msg,
+      "i" = "Crear los niveles manualmente!",
+      ">"=cli::col_red("Cod 210")))
+  
   tab_niv |>
     filter(level_order == max(level_order)) |> 
     mutate(check = (orden == 1)) |> 
@@ -1995,7 +2011,7 @@ tab_niv_default_fct <- function(par_df,
   # La tasa debe ser creciente y 
   # el peor nivel debe ser orden 1
   # Así se verifica la equivalencia entre cut_lo y orden
-  if (!chk_br || !chk_orden1)
+  if (!chk_orden1)
     cli::cli_warn(c(
       "x" = "Los niveles de riesgo por default no están ordenados!", 
       "i" = "Crear los niveles manualmente!",
@@ -2007,6 +2023,7 @@ tab_niv_default_fct <- function(par_df,
   return(tab_niv)
   
 }
+
 
 corte_2_exprs <- function(corte) {
   corte |> stringr::str_split(pattern = " *, *") |> purrr::pluck(1) |> rlang::parse_exprs()
