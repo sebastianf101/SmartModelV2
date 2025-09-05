@@ -13,7 +13,7 @@ ARG REPO_SOURCE_URL
 FROM ${BASE_IMAGE_REPO}:${BASE_IMAGE_VERSION} AS base
     
 # Apply metadata labels dynamically
-LABEL org.opencontainers.image.source=${REPO_SOURCE_URL}
+#LABEL org.opencontainers.image.source=${REPO_SOURCE_URL}
 
 # Chequeo que estoy en el directorio principal. Uno arriba de Instal.
 COPY ./Instal/rstudio-prefs.json /etc/rstudio/rstudio-prefs.json
