@@ -6,12 +6,14 @@ services:
     ports:
        - ${BSM_PORT}:8787
        - ${BSM_DASHBOARD_PORT}:3838
+    working_dir: "/home/$BSM_USER/Documents/besmart/$BSM_VERSION"
+    command: Rscript "Tableros/Explorador_IVs_API_run.R"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8787 > /dev/null || { echo 'Attempt wget on port 8787 failed'; exit 1; };"]
       interval: 5s
       timeout: 3s
       retries: 5       
-    restart: always
+    restart: unless-stopped
     environment:
       BSM_VERSION: ${BSM_VERSION}
       USER: ${BSM_USER}
