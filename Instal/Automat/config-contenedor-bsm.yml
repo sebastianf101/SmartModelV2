@@ -25,7 +25,6 @@ services:
       - script_sm_app_smartmodel-app-data:/data
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
-      - ~/.ssh/id_rocker.pub:/home/user/.ssh/authorized_keys:ro
     networks:
       - script_sm_app_smartmodel-net
     deploy:

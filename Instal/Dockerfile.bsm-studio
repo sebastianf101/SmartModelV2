@@ -48,15 +48,22 @@ RUN chmod +x /var/data/besmart/Instal/Init_users.sh
 # Inicializa los directorios de cada usuario. 
 RUN /var/data/besmart/Instal/Init_users.sh
 # set up SSH
-# Set up SSH for user 'user'
+# Set up SSH for user 'user'# SSH config (pubkey only) with StrictModes
 RUN mkdir -p /var/run/sshd && \
-    echo "PasswordAuthentication no" >> /etc/ssh/sshd_config && \
-    echo "PermitRootLogin no" >> /etc/ssh/sshd_config && \
-    echo "PubkeyAuthentication yes" >> /etc/ssh/sshd_config
-RUN mkdir -p /home/user/.ssh && \
-    chown user:consultores_ext /home/user/.ssh && \
-    chmod 770 /home/user/.ssh
+    sed -ri 's|^#?PasswordAuthentication.*|PasswordAuthentication no|' /etc/ssh/sshd_config && \
+    sed -ri 's|^#?PermitRootLogin.*|PermitRootLogin no|' /etc/ssh/sshd_config && \
+    sed -ri 's|^#?PubkeyAuthentication.*|PubkeyAuthentication yes|' /etc/ssh/sshd_config && \
+    sed -ri 's|^#?AuthorizedKeysFile.*|AuthorizedKeysFile .ssh/authorized_keys|' /etc/ssh/sshd_config && \
+    sed -ri 's|^#?StrictModes.*|StrictModes yes|' /etc/ssh/sshd_config
 
+# ~/.ssh with strict perms for 'user'
+RUN install -d -m 700 -o user -g consultores_ext /home/user/.ssh
+
+# Add the public key as authorized_keys
+COPY ./Instal/id_rocker.pub /home/user/.ssh/authorized_keys
+RUN chown user:consultores_ext /home/user/.ssh/authorized_keys && \
+    chmod 600 /home/user/.ssh/authorized_keys && \
+    chmod 750 /home/user
 EXPOSE 22 8787
 
 # Start both SSH and RStudio
