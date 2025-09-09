@@ -5,9 +5,10 @@
 set -e
 set -o pipefail
 
-# Ojo asegurarse de que estoy parado en el siguiente cd sea el directorio raiz del proyecto!!!
-cd /c/Users/sferro/Documents/Trabajo/Projects/SmartModel/SmartModelV2/
-#
+# Dynamically determine the project root (parent of the script's directory)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+cd "$PROJECT_ROOT"
 
 # Function to check and prompt for env var
 check_and_set_env_var() {

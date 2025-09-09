@@ -3,7 +3,7 @@ options(HTTPUserAgent = sprintf("R/%s R (%s)", getRversion(),
                                 paste(getRversion(), R.version$platform,
                                       R.version$arch, R.version$os)))
 options(repos = c(CRAN = 'https://cran.rstudio.com/'), download.file.method = 'libcurl', Ncpus = 4)
-
+options(restoreWorkspace = "no",  saveWorkspace = "no")
 # Setup Options -------------------------------------------------------------------
 
 # Necesario para reproducibilidad en paralelismo

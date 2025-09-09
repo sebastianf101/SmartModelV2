@@ -47,3 +47,18 @@ RUN ls -al /var/data/besmart/Instal/
 RUN chmod +x /var/data/besmart/Instal/Init_users.sh
 # Inicializa los directorios de cada usuario. 
 RUN /var/data/besmart/Instal/Init_users.sh
+# set up SSH
+# Set up SSH for user 'user'
+RUN mkdir -p /var/run/sshd && \
+    echo "PasswordAuthentication no" >> /etc/ssh/sshd_config && \
+    echo "PermitRootLogin no" >> /etc/ssh/sshd_config && \
+    echo "PubkeyAuthentication yes" >> /etc/ssh/sshd_config
+RUN mkdir -p /home/user/.ssh && \
+    chown user:consultores_ext /home/user/.ssh && \
+    chmod 770 /home/user/.ssh
+
+EXPOSE 22 8787
+
+# Start both SSH and RStudio
+CMD service ssh start && /init
+
