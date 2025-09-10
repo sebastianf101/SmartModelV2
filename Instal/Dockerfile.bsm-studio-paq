@@ -6,6 +6,13 @@ FROM rocker/tidyverse:4.5.0
 RUN apt-get update && apt-get install -y  libxt6 git-core libcurl4-openssl-dev libgit2-dev libicu-dev libsecret-1-dev \
     libsodium-dev libssl-dev libxml2-dev lsof make pandoc unixodbc-dev xclip zlib1g-dev \
     openssh-server sudo && rm -rf /var/lib/apt/lists/*
+# locales para Argentina
+RUN apt-get update && \
+    apt-get install -y locales && \
+    sed -i '/es_AR.UTF-8/s/^# //g' /etc/locale.gen && \
+    locale-gen es_AR.UTF-8
+ENV LANG=es_AR.UTF-8
+ENV LC_ALL=es_AR.UTF-8
 
 RUN echo "options(repos = c(CRAN = 'https://cran.rstudio.com/'), download.file.method = 'libcurl', Ncpus = 4)" >> /usr/local/lib/R/etc/Rprofile.site
 RUN install2.r --error --skipinstalled --ncpus -1 \

@@ -36,18 +36,12 @@ printenv | grep "BSM" | grep -v "BSM_PWD" || true
 echo "Starting ephemeral SM container ${BSM_CONTAINER} on localhost:${BSM_PORT}"
 docker compose "${COMPOSE_ARGS[@]}" up --remove-orphans --detach --wait --wait-timeout 30 || die
 
-# Poll RStudio Server
-until docker exec "$BSM_CONTAINER_SERVICE" wget -qO- http://localhost:8787 >/dev/null 2>&1; do
-  echo "Waiting for RStudio Server..."
-  sleep 1
-done
-
 docker exec --user "${BSM_USER}" --workdir "${BSM_DIR}" "$BSM_CONTAINER_SERVICE" \
-  Rscript -e "stopifnot(exists('error_custom', mode = 'function'))" || {
+  Rscript -e "if (!exists('error_custom', mode = 'function')) { cat('error_custom not found\n'); quit(status=1) }" || {
   echo "Pooling_RServer failed! Libraries or R not available!"; die; }
 
 docker exec --user "${BSM_USER}" --workdir "${BSM_DIR}" "$BSM_CONTAINER_SERVICE" \
-  Rscript -e "if (fs::path_real(bsm_path) != getwd()) error_custom('R setup failed!')" || {
+  Rscript -e "if (fs::path_real(bsm_path) != getwd()) { error_custom('R setup failed!'); quit(status=1) }" || {
   echo "Pooling_RServer failed! SM directories not available in R!"; die; }
 
 echo "Hello SmartModel ${BSM_CONTAINER} at localhost:${BSM_PORT}"
