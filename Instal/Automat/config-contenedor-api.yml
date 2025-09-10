@@ -1,3 +1,0 @@
-services:
-  studio:
-    command: Rscript "Tableros/Explorador_IVs_API_run.R"
