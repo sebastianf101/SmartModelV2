@@ -6,53 +6,79 @@
 # Define the range (MIN_PORT and MAX_PORT)
 MIN_PORT=10000
 MAX_PORT=49151
-# Function to check if a port is free
+# Function to check if a port is free using `ss` (available on Ubuntu)
+# This avoids depending on `lsof`. We check listening TCP/UDP ports and
+# consider a port used if it appears as a local endpoint in `ss -lntu` output.
 is_port_free() {
   local port=$1
-  if lsof -i:$port > /dev/null; then
-    return 1
+  # Prefer ss (iproute2). If not available, fall back to lsof if present.
+  if command -v ss >/dev/null 2>&1; then
+    # List local endpoints and match a trailing :port (covers IPv4 and IPv6 like 127.0.0.1:80 and [::]:22)
+    if ss -lntu 2>/dev/null | awk '{print $5}' | grep -E -q ":[[:alnum:]:]*:${port}$|:${port}$"; then
+      return 1
+    else
+      return 0
+    fi
+  elif command -v lsof >/dev/null 2>&1; then
+    # Use lsof to check if any process is listening on the port
+    if lsof -iTCP -sTCP:LISTEN -Pn 2>/dev/null | awk '{print $9}' | grep -E -q ":${port}$"; then
+      return 1
+    else
+      return 0
+    fi
   else
+    echo "Warning: neither 'ss' nor 'lsof' available; assuming port $port is free." >&2
     return 0
   fi
 }
 
-# Main script
-max_attempts=10
+# Main script: pick three distinct free ports (they don't need to be consecutive)
+max_attempts=200
 attempts=0
-ports_found=false
-while [ $attempts -lt $max_attempts ]; do
-  # Generate a random number within the range
+selected_ports=()
+while [ ${#selected_ports[@]} -lt 3 ] && [ $attempts -lt $max_attempts ]; do
   port=$((MIN_PORT + RANDOM % (MAX_PORT - MIN_PORT + 1)))
-  next_port=$((port + 1))
-  # Si is_port_free retorna 0 es true, 1 es false
-  if is_port_free $port && is_port_free $next_port; then 
-    echo "Both ports $port and $next_port are free." 
-    ports_found=true
-    break
-  else 
-    echo "At least one of the ports $port or $next_port is in use." 
+  # Skip if already selected
+  already=false
+  for p in "${selected_ports[@]}"; do
+    if [ "$p" -eq "$port" ]; then
+      already=true
+      break
+    fi
+  done
+  if $already; then
+    attempts=$((attempts + 1))
+    continue
+  fi
+  if is_port_free $port; then
+    selected_ports+=("$port")
+    echo "Selected free port: $port"
+  else
+    echo "Port $port is in use, skipping." 
   fi
   attempts=$((attempts + 1))
 done
 
-if ! $port_found; then
-  echo "Failed to find a free port after $max_attempts attempts."
-  # SF: Uso exit y no return porque en ese punto no hay contenedor levantado. 
+if [ ${#selected_ports[@]} -lt 3 ]; then
+  echo "Failed to find 3 free ports after $max_attempts attempts."
+  # Uso exit y no return porque en ese punto no hay contenedor levantado.
   exit 1
 fi
 
-export BSM_PORT=$port
-export BSM_DASHBOARD_PORT=$next_port
+# Assign the three found ports to the expected env vars
+export BSM_PORT=${selected_ports[0]}
+export BSM_DASHBOARD_PORT=${selected_ports[1]}
+export BSM_SSH_PORT=${selected_ports[2]}
 
-# Si USER_ID está seteado, usalo como nombre
-if [ -n "$USER_ID" ]; then
-  export BSM_NAME=$USER_ID
-else
-  # Fallback: nombre aleatorio si no se pasó USER_ID
+# If BSM_NAME is already set, do nothing
+if [ -z "$BSM_NAME" ]; then
+  # Fallback: random name if BSM_NAME was not provided
   # Generate a random string of 10 characters
   export BSM_NAME=$(cat /dev/urandom | tr -dc 'a-z0-9' | fold -w 10 | head -n 1)
 fi
 
 echo "Puerto SM efímero: $BSM_PORT"
 echo "Puerto para Tableros efímero: $BSM_DASHBOARD_PORT"
+echo "Puerto para SSH efímero: $BSM_SSH_PORT"
 echo "Nombre contenedor SM efímero: $BSM_NAME"
+echo
