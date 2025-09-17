@@ -6,7 +6,7 @@ services:
     ports:
        - ${BSM_PORT}:8787
        - ${BSM_DASHBOARD_PORT}:3838
-       - 2222:22
+       - ${BSM_SSH_PORT}:22
     working_dir: "/home/${BSM_USER}/Documents/besmart/${BSM_VERSION}"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8787 > /dev/null || { echo 'Attempt wget on port 8787 failed'; exit 1; };"]

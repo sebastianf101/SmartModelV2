@@ -9,3 +9,9 @@ export BSM_RETRIES=1
 export BSM_PWD="smartmodel"
 export BSM_CPU_CORES_MIN="2"
 export BSM_MEMORY_MIN="4G"
+export BSM_YML="bsm"
+export BSM_NAME="Mi_SM"
+export BSM_PORT="3000"
+export BSM_DASHBOARD_PORT="3001"
+export BSM_SSH_PORT="2222"
+
