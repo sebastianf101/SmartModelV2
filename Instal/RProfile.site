@@ -17,8 +17,19 @@ options(dplyr.summarise.inform = FALSE)
 options(tinytex.verbose = TRUE)
 
 # Paquetes
-options(defaultPackages=c(getOption("defaultPackages"), 
-  "magrittr", "dplyr", "purrr", "gt", "ggplot2", "readr"))
+# 202509, SF: cambié la forma de cargar los paquetes para que sea compatible con sesiones interactivas de Positron. 
+#options(defaultPackages=c(getOption("defaultPackages"), 
+#  "magrittr", "dplyr", "purrr", "gt", "ggplot2", "readr"))
+suppressMessages({
+  library(dplyr)
+  library(magrittr)
+  library(purrr)
+  library(gt)
+  library(ggplot2)
+  library(readr)
+})
+#message("Startup search path: ", paste(search(), collapse = ", "))
+
 
 # Set error_handling ------------------------------------------------------------
 # SF, 20250124
