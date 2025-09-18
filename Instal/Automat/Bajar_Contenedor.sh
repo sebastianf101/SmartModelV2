@@ -1,11 +1,8 @@
 #!/usr/bin/env bash
 ##!/bin/bash
 
-# Default values
-DEFAULT_BSM_NAME="efimero"
-
-# Use environment variables if set, otherwise use default values
-BSM_NAME=${BSM_NAME:-$DEFAULT_BSM_NAME}
+# Default values.
+source ./envvars_defaults.sh
 
 # Override with command line arguments if provided
 if [[ "$1" != "--help" ]]; then
@@ -43,9 +40,6 @@ if [[ "$1" == "--help" ]]; then
     show_help
     exit 0
 fi
-
-# Resto de las variables asume default. 
-source ./envvars_defaults.sh
 
 echo "Bajando contenedor SM efimero sm-cont-${BSM_NAME}"
 echo "y el servicio provisto en el puerto $BSM_PORT"
