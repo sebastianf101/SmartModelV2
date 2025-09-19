@@ -1,4 +1,15 @@
 
+# Libraries
+# # Paquetes
+suppressMessages({
+  library(magrittr)
+  library(purrr)
+  library(gt)
+  library(ggplot2)
+  library(readr)
+  library(dplyr)  # attach AFTER stats
+})
+
 # Set control_file ------------------------------------------------------------
 
 with_home_path("Params/Control de SmartModelStudio.json") -> param_json
