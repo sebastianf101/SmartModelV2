@@ -15,6 +15,14 @@ FROM ${BASE_IMAGE_REPO}:${BASE_IMAGE_VERSION} AS base
 # Apply metadata labels dynamically
 #LABEL org.opencontainers.image.source=${REPO_SOURCE_URL}
 
+# Set additional services sshd and api
+COPY services.d/sshd /etc/services.d/sshd
+COPY services.d/api /etc/services.d/api
+COPY services.d/healthcheck /etc/services.d/healthcheck
+
+# Init script to prepare sshd runtime dir
+COPY cont-init.d/00-sshd-dir /etc/cont-init.d/00-sshd-dir
+
 # Chequeo que estoy en el directorio principal. Uno arriba de Instal.
 COPY ./Instal/rstudio-prefs.json /etc/rstudio/rstudio-prefs.json
 COPY ./Instal/FiraCode-Retina.ttf /etc/rstudio/fonts/

@@ -1,0 +1,2 @@
+#!/usr/bin/execlineb -P
+curl -sf http://localhost:3838/__docs__/ > /dev/null

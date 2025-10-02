@@ -9,7 +9,7 @@ services:
        - ${BSM_SSH_PORT}:22
     working_dir: "/home/${BSM_USER}/Documents/besmart/${BSM_VERSION}"
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8787 > /dev/null || { echo 'Attempt wget on port 8787 failed'; exit 1; };"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8787 > /dev/null || exit 1"]
       interval: 5s
       timeout: 3s
       retries: 5       

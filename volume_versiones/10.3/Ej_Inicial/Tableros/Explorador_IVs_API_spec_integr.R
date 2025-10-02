@@ -4,6 +4,9 @@
 
 # Setup -------------------------------------------------------------------
 
+# Parámetros
+fs::path(bsm_path, "Scripts/Carga Parametros.R") |> source()
+
 # Librerias
 library(plotly)
 library(listviewer)
