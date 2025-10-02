@@ -6,11 +6,14 @@ services:
     ports:
        - ${BSM_PORT}:8787
        - ${BSM_DASHBOARD_PORT}:3838
+       - ${BSM_SSH_PORT}:22
+    working_dir: "/home/${BSM_USER}/Documents/besmart/${BSM_VERSION}"
+    command: bash -c "su ${BSM_USER} -c 'R --no-save -f Tableros/Explorador_IVs_API_run.R'"
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8787 > /dev/null || { echo 'Attempt wget on port 8787 failed'; exit 1; };"]
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:3838/__docs__/"]
       interval: 5s
       timeout: 3s
-      retries: 5       
+      retries: 5
     restart: unless-stopped
     environment:
       BSM_VERSION: ${BSM_VERSION}
@@ -19,9 +22,24 @@ services:
       LANG: "es_AR.UTF-8"
       TZ: "America/Argentina/Buenos_Aires"
       LC_ALL: "es_AR.UTF-8"
+    volumes:
+      - smartmodel-app-data-2040:/data
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    networks:
+      - smartmodel-net
     deploy:
       resources:
         reservations:
           cpus: ${BSM_CPU_CORES_MIN}
           memory: ${BSM_MEMORY_MIN}
     container_name: sm-svc-${BSM_NAME}
+
+volumes:
+    smartmodel-app-data-2040:
+      external: true  
+
+networks:
+  smartmodel-net:
+    external: true
+    

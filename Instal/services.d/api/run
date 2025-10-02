@@ -1,0 +1,2 @@
+#!/usr/bin/execlineb -P
+su ${BSM_USER} -c 'R --no-save -f Tableros/Explorador_IVs_API_run.R'

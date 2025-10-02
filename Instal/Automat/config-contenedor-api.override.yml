@@ -3,7 +3,7 @@ services:
 #    user: "root"
     command: bash -c "service ssh start && su ${BSM_USER} -c 'R --no-save -f Tableros/Explorador_IVs_API_run.R'"
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:3838/__docs__/ && echo 'API is running' || echo 'API is not running'"]
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:3838/__docs__/"]
       interval: 5s
       timeout: 3s
       retries: 5
