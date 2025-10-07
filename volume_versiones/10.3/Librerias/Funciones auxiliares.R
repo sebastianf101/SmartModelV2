@@ -1223,6 +1223,7 @@ logit.step <- function(train, target, verbose = F,
     vars.step <- c()
     while (idx <= max.vars && all.coef.positives > 0 && 
            length(var.sel)>0 && !is.na(var.sel)) {
+      if (verbose) cli::cli_alert_info("idx {idx}")     
       mod.curr <- mod.step
       if (max.vars > mod.curr$df.null - mod.curr$df.residual) {
         vars.fwd <- mod.curr |> add1(scope = fmla.all, test = "Chisq") |> 
@@ -1306,40 +1307,38 @@ logit.step <- function(train, target, verbose = F,
                 coef.steps=coef.steps, 
                 mod.curr=mod.curr, 
                 fmla=fmla,
-                ult.list.vars=vars.fwd |>  
-                  filter(Variable != "<none>"), 
                 vars.fwd.res=vars.fwd.res))
   }
 }
 
 logit.fwd <- function(train, target, verbose=F) { 
   train2 <- train
-  idx <- 1
+  idx_outer <- 1
+  if (verbose) cli::cli_alert_info("Secuencia Fwd {idx_outer}.")
   vars.excl <- c()
   res.step <- logit.step(train2, target, verbose=verbose)
-  vars.ajustes.fwd <- res.step$vars.fwd.res |> mutate(Ajuste = idx)
+  vars.ajustes.fwd <- res.step$vars.fwd.res |> mutate(Ajuste = idx_outer)
   if (is.null(res.step$vars.fwd.res) || nrow(res.step$vars.fwd.res) == 0)
     error_custom('Parámetros faltantes!', 
                  "i" = 'FwdK no pudo seleccionar variables!',
                  ">"=cli::col_red("204"))
-  coef.steps <- res.step$coef.steps |> mutate(Ajuste=idx)
+  coef.steps <- res.step$coef.steps |> mutate(Ajuste=idx_outer)
   while (res.step$all.coef.positives < 0 && 
          length(res.step$var.sel) > 0 && 
          !is.na(res.step$var.sel)) {
     if (!is.null(res.step$vars.fwd.res) && 
         nrow(res.step$vars.fwd.res) > 0) {
       vars.ajustes.fwd <- bind_rows(vars.ajustes.fwd, 
-                                    res.step$vars.fwd.res |> mutate(Ajuste = idx))
+                                    res.step$vars.fwd.res |> mutate(Ajuste = idx_outer))
     }
     vars.excl <- c(vars.excl, res.step$var.sel)
     train2 <- train2 |> select(-one_of(res.step$var.sel))
     res.step <- logit.step(train2, target, 
                            verbose=verbose, 
                            fmla=res.step$fmla) 
-    idx <- idx + 1
-    if (verbose) cli::cli_alert_info("Secuencia Fwd {idx}. Fórmula actual {res.step$fmla}")
+    idx_outer <- idx_outer + 1
     coef.steps <- bind_rows(coef.steps, 
-                            res.step$coef.steps |> mutate(Ajuste=idx))
+                            res.step$coef.steps |> mutate(Ajuste=idx_outer))
   }
   
   return(list(vars.excl=vars.excl, 

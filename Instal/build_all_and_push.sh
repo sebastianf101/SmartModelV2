@@ -9,6 +9,7 @@ set -o pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_ROOT"
+echo "Directorio de trabajo: $(pwd)"
 
 # Function to check and prompt for env var
 check_and_set_env_var() {
