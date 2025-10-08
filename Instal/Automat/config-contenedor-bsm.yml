@@ -7,7 +7,7 @@ services:
        - ${BSM_PORT}:8787
        - ${BSM_DASHBOARD_PORT}:3838
        - ${BSM_SSH_PORT}:22
-    working_dir: "/home/${BSM_USER}/Documents/besmart/${BSM_VERSION}"
+    working_dir: ${BSM_DIR}
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8787 > /dev/null || exit 1"]
       interval: 5s
@@ -16,8 +16,9 @@ services:
     restart: unless-stopped
     environment:
       BSM_VERSION: ${BSM_VERSION}
-      USER: ${BSM_USER}
-      PASSWORD: ${BSM_PWD}
+      BSM_USER: ${BSM_USER}
+      BSM_DIR: ${BSM_DIR}
+      PASSWORD: smartmodel
       LANG: "es_AR.UTF-8"
       TZ: "America/Argentina/Buenos_Aires"
       LC_ALL: "es_AR.UTF-8"
