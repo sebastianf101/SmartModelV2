@@ -1,0 +1,10 @@
+{
+  // Enforce LF line endings for this workspace (helps Windows users keep scripts Unix-compatible)
+  "files.eol": "\n",
+  // Trim trailing whitespace and ensure files end with a newline
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+  // Optional: show whitespace and render control characters
+  "editor.renderWhitespace": "all",
+  "editor.renderControlCharacters": true
+}
