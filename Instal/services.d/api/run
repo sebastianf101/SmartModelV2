@@ -24,4 +24,4 @@ echo "[api] pwd=$(pwd)"
 
 echo "[api] starting Explorador IVs API"
 
-exec s6-setuidgid "$BSM_USER" Rscript --no-restore --no-save Tableros/Explorador_IVs_API_run.R 2>&1
+exec s6-setuidgid "$BSM_USER" R --slave --no-save --no-restore -f Tableros/Explorador_IVs_API_run.R 2>&1
