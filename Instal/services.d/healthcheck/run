@@ -1,2 +1,3 @@
 #!/usr/bin/execlineb -P
-curl -sf http://localhost:3838/__docs__/ > /dev/null
+redirfd -w 1 /dev/null
+curl -sf http://localhost:3838/__docs__/
