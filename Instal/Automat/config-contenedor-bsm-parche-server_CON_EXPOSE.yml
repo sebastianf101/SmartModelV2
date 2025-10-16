@@ -3,16 +3,22 @@ name: sm-cont-${BSM_NAME}
 services:
   studio:
     image: ${BSM_IMAGE}
-    ports:
-       - ${BSM_PORT}:8787
-       - ${BSM_DASHBOARD_PORT}:3838
-       - ${BSM_SSH_PORT}:22
+    container_name: sm-svc-${BSM_NAME}
+
     working_dir: ${BSM_DIR}
+    command: bash -lc "su ${BSM_USER} -c 'R --no-save -f Tableros/Explorador_IVs_API_run.R'"
+
+    # NO publica puertos al host; solo entre contenedores en la misma red
+    expose:
+      - "3838"   # API Shiny/Plumber interna
+      - "8787"   # RStudio Server interno (si lo necesitás entre contenedores)
+
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:3838/__docs__/"]
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:3838/__docs__/ || exit 1"]
       interval: 5s
       timeout: 3s
       retries: 5
+
     restart: unless-stopped
     environment:
       BSM_VERSION: ${BSM_VERSION}
@@ -22,25 +28,28 @@ services:
       LANG: "es_AR.UTF-8"
       TZ: "America/Argentina/Buenos_Aires"
       LC_ALL: "es_AR.UTF-8"
+
     volumes:
       - smartmodel-app-data-2040:/data
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
+
     networks:
-      - smartmodel-net
+      smartmodel-net:
+        aliases:
+          - sm-svc-${BSM_NAME}
+          - studio
+
     deploy:
       resources:
         reservations:
-          cpus: ${BSM_CPU_CORES_MIN}
-          memory: ${BSM_MEMORY_MIN}
-    container_name: sm-svc-${BSM_NAME}
-    command: bash -c "su ${BSM_USER} -c 'R --no-save -f Tableros/Explorador_IVs_API_run.R'"
-    
+          cpus: "${BSM_CPU_CORES_MIN}"
+          memory: "${BSM_MEMORY_MIN}"
+
 volumes:
-    smartmodel-app-data-2040:
-      external: true
+  smartmodel-app-data-2040:
+    external: true
 
 networks:
   smartmodel-net:
     external: true
-
