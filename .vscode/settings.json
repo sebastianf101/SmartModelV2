@@ -6,5 +6,12 @@
   "files.insertFinalNewline": true,
   // Optional: show whitespace and render control characters
   "editor.renderWhitespace": "all",
-  "editor.renderControlCharacters": true
+  "editor.renderControlCharacters": true,
+  "terminal.integrated.defaultProfile.windows": "WSL",
+  "terminal.integrated.profiles.windows": {
+    "WSL": {
+      "path": "C:\\Windows\\System32\\wsl.exe",
+      "args": []
+    }
+  }
 }

@@ -12,7 +12,7 @@ services:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8787 > /dev/null || exit 1"]
       interval: 5s
       timeout: 3s
-      retries: 5       
+      retries: 5
     restart: unless-stopped
     environment:
       BSM_VERSION: ${BSM_VERSION}
@@ -23,11 +23,11 @@ services:
       TZ: "America/Argentina/Buenos_Aires"
       LC_ALL: "es_AR.UTF-8"
     volumes:
-      - script_sm_app_smartmodel-app-data:/data
+      - smartmodel-app-data:/data
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
     networks:
-      - script_sm_app_smartmodel-net
+      - smartmodel-net
     deploy:
       resources:
         reservations:
@@ -36,10 +36,10 @@ services:
     container_name: sm-svc-${BSM_NAME}
 
 volumes:
-  script_sm_app_smartmodel-app-data:
-    external: true  
+  smartmodel-app-data:
+    external: true
 
 networks:
-  script_sm_app_smartmodel-net:
+  smartmodel-net:
     external: true
-    
+
