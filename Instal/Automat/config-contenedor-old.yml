@@ -6,7 +6,6 @@ services:
     ports:
        - ${BSM_PORT}:8787
        - ${BSM_DASHBOARD_PORT}:3838
-       - ${BSM_SSH_PORT}:22
     working_dir: ${BSM_DIR}
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8787 > /dev/null || exit 1"]
@@ -22,24 +21,9 @@ services:
       LANG: "es_AR.UTF-8"
       TZ: "America/Argentina/Buenos_Aires"
       LC_ALL: "es_AR.UTF-8"
-    volumes:
-      - smartmodel-app-data:/data
-      - /etc/localtime:/etc/localtime:ro
-      - /etc/timezone:/etc/timezone:ro
-    networks:
-      - smartmodel-net
     deploy:
       resources:
         reservations:
           cpus: ${BSM_CPU_CORES_MIN}
           memory: ${BSM_MEMORY_MIN}
     container_name: sm-svc-${BSM_NAME}
-
-volumes:
-  smartmodel-app-data:
-    external: true
-
-networks:
-  smartmodel-net:
-    external: true
-
