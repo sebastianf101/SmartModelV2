@@ -15,17 +15,17 @@ fs::path(bsm_path, "Scripts/Carga Parametros.R") |> source()
 ```{r Load_CleanData}
 vars.pred.sincor <- 'vars.pred.sincor.rds' |> with_working_path() |> readr::read_rds()
 'adic_data.rds' |> with_working_path() |> readr::read_rds() -> datos_adic
-datos_adic |> pluck(".ids") -> .ids 
+datos_adic |> pluck(".ids") -> .ids
 ```
 
 ```{r CheckVarsPred}
 vars.pred.sincor |> assertthat::not_empty() -> cnd
-if (!cnd) error_custom('Variables predictoras seleccionadas inexistentes! Se ejecutó correctamente el cuaderno de Limpieza y Transformación?', 
+if (!cnd) error_custom('Variables predictoras seleccionadas inexistentes! Se ejecutó correctamente el cuaderno de Limpieza y Transformación?',
   ">"=cli::col_red("Cod 116"))
 ```
 
 ```{r LoadData}
-tab.bins <- c(readRDS("VarsContDiscretizadas.Rdat" |> with_working_path()), 
+tab.bins <- c(readRDS("VarsContDiscretizadas.Rdat" |> with_working_path()),
               readRDS("VarsFactDiscretizadas.Rdat" |> with_working_path()))
 df_cor <- readRDS("Nombres_Correlacionadas.Rdat" |> with_working_path())
 df <- readRDS("DF_completo.Rdat" |> with_working_path())
@@ -56,7 +56,7 @@ train <- df |> filter(.part == "1_Train") |> select(all_of(vars.pred.sincor), Go
 
 ## Introducción
 
-En este cuaderno construimos un modelo de score a partir de las variables `r length(vars.pred.sincor)` candidatas obtenidas en el cuaderno de Limpieza y Transformación. 
+En este cuaderno construimos un modelo de score a partir de las variables `r length(vars.pred.sincor)` candidatas obtenidas en el cuaderno de Limpieza y Transformación.
 
 ### Coeficientes del modelo
 
@@ -66,10 +66,10 @@ res.trad <- tryCatch({
   },
   error = function(e) {
     if (any(train$.weight != 1)) {
-      error_custom("El método ForwardK no convergió. Intentar con valores de par_weight constantes o constantes por cada valor de par_target.", 
+      error_custom("El método ForwardK no convergió. Intentar con valores de par_weight constantes o constantes por cada valor de par_target.",
                ">"=cli::col_red("Cod 202"))
     } else {
-      error_custom("El método ForwardK no convergió. El método ForwardK no convergió por causas internas. Reportar el caso.", 
+      error_custom("El método ForwardK no convergió. El método ForwardK no convergió por causas internas. Reportar el caso.",
                ">"=cli::col_red("Cod 203"))
     }
     return(NULL)
@@ -77,28 +77,27 @@ res.trad <- tryCatch({
 )
 ```
 
-
 ```{r ForwardK_Results}
 mod.trad <- res.trad$det$mod.curr
 tab.co <- mod.trad |> broom::tidy() |> select(term, estimate) |> rename(Variable=term, Beta=estimate)
-vars_mod <- tab.co |> filter(Variable!="(Intercept)") |> pull(Variable) 
+vars_mod <- tab.co |> filter(Variable!="(Intercept)") |> pull(Variable)
 scores <- round(1000*(predict(mod.trad, newdata = df, type = "response")))
 scores <- if_else(scores>999,999,scores)
 df.new <- df |> mutate(score.new=scores)
-df.scores <- df.new |> 
-  select(all_of(.ids), .weight, .grupo, .part, Bad, Good, score.new) |> 
+df.scores <- df.new |>
+  select(all_of(.ids), .weight, .grupo, .part, Bad, Good, score.new) |>
   rename(target=Bad, score=score.new)
 ```
 
 El modelo tiene `r length(coef(mod.trad))-1` variables. La tabla de regresión es:
 
 ```{r ModeloResult, timeit=NULL}
-mod.trad |> 
-  gtsummary::tbl_regression(exponentiate = FALSE) |> 
-  gtsummary::modify_caption("Coeficientes del modelo logístico final") |> 
-  gtsummary::add_significance_stars(hide_ci = FALSE, hide_p = FALSE) |> 
-  gtsummary::modify_header(estimate=gt::html("<br><em>β</em>"), label=md("**Variable**")) |> 
-  gtsummary::modify_footnote(estimate=md("log(Odds Ratio) estimate"), 
+mod.trad |>
+  gtsummary::tbl_regression(exponentiate = FALSE) |>
+  gtsummary::modify_caption("Coeficientes del modelo logístico final") |>
+  gtsummary::add_significance_stars(hide_ci = FALSE, hide_p = FALSE) |>
+  gtsummary::modify_header(estimate=gt::html("<br><em>β</em>"), label=md("**Variable**")) |>
+  gtsummary::modify_footnote(estimate=md("log(Odds Ratio) estimate"),
                              abbreviation = TRUE)
 ```
 
@@ -111,30 +110,30 @@ resumen_fwd_gt(res.trad, tab.bins)
 ### Gráfico de evolución de los coeficientes por iteracción
 
 ```{r}
-res.trad$coef.steps |> 
-  ungroup() |> 
-  filter(Variable != '(Intercept)') |> 
-  filter(Paso > 0) |> 
+res.trad$coef.steps |>
+  ungroup() |>
+  filter(Variable != '(Intercept)') |>
+  filter(Paso > 0) |>
   # Quito _g
-  mutate(Variable=stringr::str_sub(Variable, end = -3)) |> 
+  mutate(Variable=stringr::str_sub(Variable, end = -3)) |>
   mutate(Orden=consecutive_id(Paso, Ajuste)) -> tab
 
-tab |> 
+tab |>
   # Notar que me asumo el orden implícito y me quedo con la primera aparición
-  distinct(Variable, .keep_all = TRUE) |> 
-  mutate(short_legend=paste(format(Orden, width=3))) |> 
-  mutate(long_legend=paste(short_legend, Variable)) |> 
-  select(Variable, long_legend, short_legend) -> tab_legends 
+  distinct(Variable, .keep_all = TRUE) |>
+  mutate(short_legend=paste(format(Orden, width=3))) |>
+  mutate(long_legend=paste(short_legend, Variable)) |>
+  select(Variable, long_legend, short_legend) -> tab_legends
 
-tab |> 
-  inner_join(tab_legends, by = "Variable") -> tab 
+tab |>
+  inner_join(tab_legends, by = "Variable") -> tab
 
-tab |> 
-  group_by(Variable) |> 
+tab |>
+  group_by(Variable) |>
   filter(Orden==min(Orden)) -> gr_coef_start_labels
 
-tab |> 
-  group_by(Variable) |> 
+tab |>
+  group_by(Variable) |>
   filter(Orden==max(Orden)) -> gr_coef_end_labels
 
 # Cantidad de variables que participaron
@@ -146,14 +145,14 @@ altura + 5 -> ancho
 #| column: page-right
 #| fig.width: !expr ancho
 #| fig.height: !expr altura
-#| 
-tab |> 
-  ggplot(aes(x=Orden, y=Beta, colour=long_legend)) + 
-  theme_bw() + 
-  geom_line(linewidth=1.2) + 
-  scale_x_continuous(breaks = scales::breaks_width(1), 
+#|
+tab |>
+  ggplot(aes(x=Orden, y=Beta, colour=long_legend)) +
+  theme_bw() +
+  geom_line(linewidth=1.2) +
+  scale_x_continuous(breaks = scales::breaks_width(1),
                      expand = expansion(add = c(0,1))) +
-  scale_y_continuous(breaks = scales::breaks_width(0.1)) +  
+  scale_y_continuous(breaks = scales::breaks_width(0.1)) +
   geom_label(data = gr_coef_start_labels, show.legend = FALSE,
              mapping = aes(x=Orden, y=Beta, label=short_legend),
              position = position_dodge(width = 1)) +
@@ -165,14 +164,14 @@ tab |>
             #position = position_dodge(width = 0.01, preserve='single')
             position = position_identity()
             ) +
-  guides(colour = guide_legend(title = "Variable", 
-                               label.position = "right", ncol = 1)) + 
+  guides(colour = guide_legend(title = "Variable",
+                               label.position = "right", ncol = 1)) +
   xlab("Paso") # Mantengo la vieja nomenclatura
 ```
 
 
 ```{r Verif_Cor_in_df}
-X.cor <- df.new |> filter(.part == '1_Train') |> 
+X.cor <- df.new |> filter(.part == '1_Train') |>
   select(all_of(vars_mod)) |> cor() |> as_tibble(rownames="Var1")
 X.cor.df <- tidyr::gather(X.cor, key = "Var2", value = "Cor", -Var1)
 df_cor <- X.cor.df |> filter(Var1<Var2 & abs(Cor) > par_cor_show) |> arrange(desc(Cor))
@@ -180,16 +179,16 @@ df_cor <- X.cor.df |> filter(Var1<Var2 & abs(Cor) > par_cor_show) |> arrange(des
 
 ```{r Verif_Cor_in_title}
 #| results: asis
-if (df_cor |> nrow() > 0) 
-  cat("### Presencia de variables con correlación mayor a", 
+if (df_cor |> nrow() > 0)
+  cat("### Presencia de variables con correlación mayor a",
       par_cor_show,  "(`par_cor_show`)", "\n")
 ```
 
 
 ```{r Verif_Cor_in_table}
-if (df_cor |> nrow() > 0) 
-  df_cor |> gt() |> 
-  tab_header("Pares de variables con correlación alta dentro del modelo") |> 
+if (df_cor |> nrow() > 0)
+  df_cor |> gt() |>
+  tab_header("Pares de variables con correlación alta dentro del modelo") |>
   fmt_number(columns = "Cor", locale = "es_AR", decimals = 2)
 ```
 
@@ -198,16 +197,16 @@ if (df_cor |> nrow() > 0)
 ```{r RepModFwdValTest}
 # Train
 tabOrig <- df.scores |> filter(.part=="1_Train") |> select(-.part) |> genTab_ntil(par_perf_bins)
-tab.train <- df.scores |> filter(.part=="1_Train") |> select(-.part) |> 
+tab.train <- df.scores |> filter(.part=="1_Train") |> select(-.part) |>
   genTab_f(genAsocCuantil(tabOrig))
 
 # Test
-tab.test <- df.scores |> filter(.part=="2_Test") |> select(-.part) |> 
+tab.test <- df.scores |> filter(.part=="2_Test") |> select(-.part) |>
   genTab_f(genAsocCuantil(tabOrig))
 
 # Valid
 if (par_split > 1) {
-tab.valid <- df.scores |> filter(.part=="3_Valid") |> select(-.part) |> 
+tab.valid <- df.scores |> filter(.part=="3_Valid") |> select(-.part) |>
   genTab_f(genAsocCuantil(tabOrig))
 }
 
@@ -218,49 +217,49 @@ tab.all <- df.scores |> select(-.part) |> genTab_f(genAsocCuantil(tabOrig))
 ### Comparación de curvas ROC y de Ganancias
 
 ```{r GrafROC}
-df.scores |> 
-  group_by(.part) |> 
-  yardstick::roc_curve(target, score)  |> 
+df.scores |>
+  group_by(.part) |>
+  yardstick::roc_curve(target, score)  |>
   ggplot(aes(x = 1 - specificity, y = sensitivity, colour=.part )) +
-  labs(colour = "Partición") + 
+  labs(colour = "Partición") +
   geom_path() +
   geom_abline(lty = 3) +
   coord_equal() +
-  theme_bw() 
+  theme_bw()
 ```
 
 ```{r GrafGananciaMalos}
-df.scores |> 
-  mutate(score=1 - score/1000) |> 
-  group_by(.part) |> 
-  yardstick::gain_curve(score, truth = target, event_level = "second")  |> 
-  ggplot(aes(x = .percent_tested, y = .percent_found, colour=.part )) + 
+df.scores |>
+  mutate(score=1 - score/1000) |>
+  group_by(.part) |>
+  yardstick::gain_curve(score, truth = target, event_level = "second")  |>
+  ggplot(aes(x = .percent_tested, y = .percent_found, colour=.part )) +
   labs(x = "% Asc. Total", y = "% Asc. Malos", colour = "Partición") +
-  geom_path() + 
+  geom_path() +
   geom_abline(lty = 3) +
   coord_equal() +
-  theme_bw() 
+  theme_bw()
 ```
 
 ```{r GrafGananciaBuenos}
-df.scores |> 
-  mutate(score=score/1000) |> 
-  group_by(.part) |> 
-  yardstick::gain_curve(score, truth = target, event_level = "first")  |> 
-  ggplot(aes(x = .percent_tested, y = .percent_found, colour=.part )) + 
+df.scores |>
+  mutate(score=score/1000) |>
+  group_by(.part) |>
+  yardstick::gain_curve(score, truth = target, event_level = "first")  |>
+  ggplot(aes(x = .percent_tested, y = .percent_found, colour=.part )) +
   labs(x = "% Asc. Total", y = "% Asc. Buenos", colour = "Partición") +
-  geom_path() + 
+  geom_path() +
   geom_abline(lty = 3) +
   coord_equal() +
-  theme_bw() 
+  theme_bw()
 ```
 
 ### Resumen de Performance
 
 ```{r ResPerf}
-df.scores |> 
-  perf_resumen_x_grupos(tabOrig, .part) |> 
-  res_x_grupos_2_gt("Resumen de Performance x Partición") 
+df.scores |>
+  perf_resumen_x_grupos(tabOrig, .part) |>
+  res_x_grupos_2_gt("Resumen de Performance x Partición")
 ```
 
 ### Detalle de Performance
@@ -287,20 +286,20 @@ if (par_split > 1) {
 
 ```{r PerformanceValidTitle}
 #| results: asis
-if (par_split > 1) 
+if (par_split > 1)
   cat("#### Perfomance Validación")
 ```
 
 ```{r PerformanceValidTable}
-if (par_split > 1) 
+if (par_split > 1)
   repKS(tab.valid, caption="Validación Modelo Logístico en Valid In-Sample", totales = T)
 ```
 
 ```{r Estab_Vars_Mod}
-tab.bins |> 
-  keep(~ .x |> pluck('var_gen') %in% vars_mod) |>  
+tab.bins |>
+  keep(~ .x |> pluck('var_gen') %in% vars_mod) |>
   tab_woes_cuts() -> cortes
- 
+
 df |>
   estab_x_grupo('.part', cortes, detailed = TRUE) -> df_estab_Part
 ```
@@ -310,18 +309,18 @@ df |>
 ```{r Verif_Implement_SQL}
 mod_2_sql_source(tab.co, tab.bins) -> sent_sql
 
-data_source_delim_path |> 
+data_source_delim_path |>
   csv_2_score(con_target = TRUE,
-              spec_adic=datos_adic, 
+              spec_adic=datos_adic,
               mod_sql=sent_sql) -> scores_sql
 
-{ if (1 < par_split) df.scores |> filter(.part == '1_Train') 
+{ if (1 < par_split) df.scores |> filter(.part == '1_Train')
   else df.scores |> filter(.part != '3_Valid') } -> scores_R
-scores_R |> 
-  mutate(target=as.integer(as.character(target))) |>  
-  rename(score_r=score) |> 
-  inner_join(scores_sql |> rename(score_sql=score), 
-             by = .ids) -> df_comp_sql 
+scores_R |>
+  mutate(target=as.integer(as.character(target))) |>
+  rename(score_r=score) |>
+  inner_join(scores_sql |> rename(score_sql=score),
+             by = .ids) -> df_comp_sql
 tabOrig_sql <- scores_sql |> select(target, score) |> genTab_ntil(par_perf_bins)
 tab_all_sql <- scores_sql |> select(target, score) |> genTab_f(genAsocCuantil(tabOrig_sql))
 ```
@@ -329,10 +328,10 @@ tab_all_sql <- scores_sql |> select(target, score) |> genTab_f(genAsocCuantil(ta
 ### Tamaños de muestra iguales
 
 ```{r Filas_Iguales_R_SQL}
-tibble(Muestra_R=scores_R |> nrow(), Muestra_SQL=df_comp_sql |> nrow(), 
-       `Mismo_Tamaño`=(scores_R |> nrow() == df_comp_sql |> nrow())) |> 
-  gt() |> tab_header("Mismo tamaño") |> opt_row_striping() |> 
-  fmt_number(columns = where(is.numeric), decimals = 0, locale = 'es_AR') 
+tibble(Muestra_R=scores_R |> nrow(), Muestra_SQL=df_comp_sql |> nrow(),
+       `Mismo_Tamaño`=(scores_R |> nrow() == df_comp_sql |> nrow())) |>
+  gt() |> tab_header("Mismo tamaño") |> opt_row_striping() |>
+  fmt_number(columns = where(is.numeric), decimals = 0, locale = 'es_AR')
 ```
 
 ### Máxima diferencia entre Scores
@@ -342,18 +341,18 @@ df_comp_sql |> summarise(Max_Dif_SQL_R=max(abs(score_r-score_sql))) -> tab
 
 if (tab$Max_Dif_SQL_R > 1)
   cli::cli_warn(c(
-    "Hubo un problema en la verificación de Scores!", 
+    "Hubo un problema en la verificación de Scores!",
     ">"=cli::col_red("Cod 201")))
 ```
 
 
 ```{r Max_Dif_gt}
-tab |> 
-  gt() |> tab_header("Máxima diferencia entre scores") |> opt_row_striping() |> 
-  cols_label(Max_Dif_SQL_R="Máx. Abs. Dif") |> 
-  fmt_number(columns = where(is.numeric), decimals = 2, locale = 'es_AR') |> 
-  tab_style(style = list(cell_fill(color = "red"), cell_text(weight = "bold")), 
-            locations = cells_body(columns = Max_Dif_SQL_R, 
+tab |>
+  gt() |> tab_header("Máxima diferencia entre scores") |> opt_row_striping() |>
+  cols_label(Max_Dif_SQL_R="Máx. Abs. Dif") |>
+  fmt_number(columns = where(is.numeric), decimals = 2, locale = 'es_AR') |>
+  tab_style(style = list(cell_fill(color = "red"), cell_text(weight = "bold")),
+            locations = cells_body(columns = Max_Dif_SQL_R,
                                    rows = Max_Dif_SQL_R > 1))
 
 ```
@@ -367,37 +366,37 @@ repKS(tab_all_sql, caption="Validación muestra de desarrollo en SQL", totales =
 ## Niveles de Riesgo por Cuantiles
 
 ```{r CargaRangos}
-df.scores |> 
-  filter(.part == '1_Train') |> 
-  mutate(Good=as.numeric(as.character(Good))) |> 
+df.scores |>
+  filter(.part == '1_Train') |>
+  mutate(Good=as.numeric(as.character(Good))) |>
   select(score, Good, .weight) -> tab
 tab |> tab_niv_default_fct() -> tab_niv_default
 ```
 
 ```{r Load_df_work}
-scores_sql |> 
-  range_2_newvar(tab_niv_default, "score_niv") |> 
-  mutate(bad = target, Good=1-bad) |> 
+scores_sql |>
+  range_2_newvar(tab_niv_default, "score_niv") |>
+  mutate(bad = target, Good=1-bad) |>
   mutate(Bad = factor(bad), Good = factor(Good)) -> df_work
 ```
 
 ```{r TablaNivelesRiesgo}
-df_work |> 
-  group_by(score_niv) |> 
-  summarise(n=n(), br=mean(bad)) |> 
-  mutate(n_p = n/sum(n)) |> 
-  left_join(tab_niv_default, by = c("score_niv" = "level_name")) |> 
-  arrange(level_order) |> 
-  mutate(Alineado = TM_min <= br & br <= TM_max) |> 
-  select(level_order, score_niv, rule, n, n_p, TM_min, br, TM_max, Alineado) |> gt() |> 
+df_work |>
+  group_by(score_niv) |>
+  summarise(n=n(), br=mean(bad)) |>
+  mutate(n_p = n/sum(n)) |>
+  left_join(tab_niv_default, by = c("score_niv" = "level_name")) |>
+  arrange(level_order) |>
+  mutate(Alineado = TM_min <= br & br <= TM_max) |>
+  select(level_order, score_niv, rule, n, n_p, TM_min, br, TM_max, Alineado) |> gt() |>
   cols_label(level_order = "Orden", rule = "Regla", n = "#", n_p = "%",
              score_niv = "Nivel de Riesgo", br = "Tasa de malos", Alineado = "Tasa alineada",
-             TM_min = gt::html("Tasa de malos<br>m&iacute;nima"), 
-             TM_max = gt::html("Tasa de malos<br>m&aacute;xima")) |> 
-  fmt_percent(columns = c(n_p, br, TM_min, TM_max), decimals = 1, locale = "es_AR") |> 
-  fmt_integer(level_order) |> 
-  tab_style(cell_text(color = 'red'),locations = cells_body(columns=br, rows = (Alineado==F))) |> 
-  opt_row_striping() |> 
+             TM_min = gt::html("Tasa de malos<br>m&iacute;nima"),
+             TM_max = gt::html("Tasa de malos<br>m&aacute;xima")) |>
+  fmt_percent(columns = c(n_p, br, TM_min, TM_max), decimals = 1, locale = "es_AR") |>
+  fmt_integer(level_order) |>
+  tab_style(cell_text(color = 'red'),locations = cells_body(columns=br, rows = (Alineado==F))) |>
+  opt_row_striping() |>
   tab_header(title = "Especificación y alineación de niveles de Riesgo")
 ```
 
@@ -406,7 +405,7 @@ df_work |>
 ```{r}
 #| eval: !expr '!par_quick && !is.null(res.trad$vars.excl)'
 cat("####", "Variables excluídas por cambio a coeficiente negativo", "\n")
-cat("El conjunto de las variables que fueron excluídas por ser la primera con coeficiente negativo en cada paso es",  paste(res.trad$vars.excl, collapse = ","), "\n") 
+cat("El conjunto de las variables que fueron excluídas por ser la primera con coeficiente negativo en cada paso es",  paste(res.trad$vars.excl, collapse = ","), "\n")
 ```
 
 `r if (!par_quick) "### Orden de variables según estabilidad del IV por Partición\n"`
@@ -415,7 +414,7 @@ cat("El conjunto de las variables que fueron excluídas por ser la primera con c
 #| label: "Estab_var_part"
 #| eval: !expr '!par_quick'
 df_estab_part |> estab_tab_2_gt(var_list = vars_mod |> stringr::str_remove("_g$")) -> tabs
-tabs |> pluck('xvar_tab') 
+tabs |> pluck('xvar_tab')
 ```
 
 `r if (!par_quick && !empty_param(par_var_grupo)) "### Orden de variables según estabilidad del IV por Grupos\n"`
@@ -424,10 +423,10 @@ tabs |> pluck('xvar_tab')
 #| label: "Estab_var_grupo"
 #| eval: !expr '!par_quick && !empty_param(par_var_grupo)'
 df_estab_grupo |> estab_tab_2_gt(var_list = vars_mod |> stringr::str_remove("_g$")) -> tabs
-tabs |> pluck('xvar_tab') 
+tabs |> pluck('xvar_tab')
 ```
 
-## Fin 
+## Fin
 
 
 ```{r SaveModel}
@@ -443,8 +442,8 @@ saveRDS(tab.co, file = f.name)
 #| output: false
 f.name = "df_con_scores.csv" |> with_working_path()
 df.scores |> readr::write_csv(f.name)
-if (!fs::file_exists(f.name)) 
-  error_custom("No se logró grabar el archivo {f.name}", 
+if (!fs::file_exists(f.name))
+  error_custom("No se logró grabar el archivo {f.name}",
                ">"=cli::col_red("Cod 121"))
 
 #f.name = "DF_con_scores.Rdat" |> with_working_path()
@@ -453,36 +452,36 @@ if (!fs::file_exists(f.name))
 #f.name = "DF_con_scores.Rdat" |> with_working_path()
 #if (fs::file_exists(f.name)) message("Se grabó el dataset con vars originales, transf y score en: ", f.name)
 f.name = "Res_Logit_Trad.Rdat" |> with_working_path()
-if (!fs::file_exists(f.name)) 
-  error_custom("No se logró grabar el archivo {f.name}", 
+if (!fs::file_exists(f.name))
+  error_custom("No se logró grabar el archivo {f.name}",
                ">"=cli::col_red("Cod 121"))
 
 f.name = "Tab_Coef.Rdat" |> with_working_path()
-if (!fs::file_exists(f.name)) 
-  error_custom("No se logró grabar el archivo {f.name}", 
+if (!fs::file_exists(f.name))
+  error_custom("No se logró grabar el archivo {f.name}",
                ">"=cli::col_red("Cod 121"))
 
-f.name = "scores.sql" |> with_working_path() 
+f.name = "scores.sql" |> with_working_path()
 sent_sql |> readr::write_file(f.name)
-if (!fs::file_exists(f.name)) 
-  error_custom("No se logró grabar el archivo {f.name}", 
+if (!fs::file_exists(f.name))
+  error_custom("No se logró grabar el archivo {f.name}",
                ">"=cli::col_red("Cod 121"))
 
-f.name = "sent.sql" |> with_working_path() 
+f.name = "sent.sql" |> with_working_path()
 sent_sql |> readr::write_file(f.name)
-if (!fs::file_exists(f.name)) 
-  error_custom("No se logró grabar el archivo {f.name}", 
+if (!fs::file_exists(f.name))
+  error_custom("No se logró grabar el archivo {f.name}",
                ">"=cli::col_red("Cod 121"))
 
-f.name = "tabPerfOrig.Rdat" |> with_working_path() 
+f.name = "tabPerfOrig.Rdat" |> with_working_path()
 tabOrig |> readr::write_rds(f.name)
-if (!fs::file_exists(f.name)) 
-  error_custom("No se logró grabar el archivo {f.name}", 
+if (!fs::file_exists(f.name))
+  error_custom("No se logró grabar el archivo {f.name}",
                ">"=cli::col_red("Cod 121"))
 
 # Cambiar por grabación de tab_niv_default como json
 f.name = "tab_niv_default.json" |> with_working_path()
-tab_niv_default |> 
+tab_niv_default |>
   select(all_of(c("level_name", "rule", "TM_max"))) -> tab
 colnames(tab) <- c("Nombre Nivel", "Regla", "Tasa de malos máxima")
 tab |> jsonlite::write_json(path=f.name, pretty = TRUE)
@@ -492,31 +491,41 @@ tab |> jsonlite::write_json(path=f.name, pretty = TRUE)
 ```{r Save_Estab_ivs}
 f.name = "Estab_ivs_mod_InS.Rdat" |> with_working_path()
 df_estab_Part |> write_rds(f.name)
-if (!fs::file_exists(f.name)) 
+if (!fs::file_exists(f.name))
   error_custom("No se logró grabar el archivo {f.name}")
 ```
 
 ```{r Save-Zip-Model}
-f.name = "Modelo.zip" |> with_working_path() 
+f.name = "Modelo.zip" |> with_working_path()
 c(
-  "adic_data.rds" |> with_working_path(), 
-  "scores.sql" |> with_working_path(), 
-  "sent.sql" |> with_working_path(), 
-  "Tab_Coef.Rdat" |> with_working_path(), 
-  "tabPerfOrig.Rdat" |> with_working_path(), 
+  "sent.sql" |> with_working_path(),
+  "df_con_scores.csv" |> with_working_path()
+) -> file_list_keep
+c(
+  "adic_data.rds" |> with_working_path(),
+  "scores.sql" |> with_working_path(),
+  "Tab_Coef.Rdat" |> with_working_path(),
+  "tabPerfOrig.Rdat" |> with_working_path(),
   "tab_niv_default.json" |> with_working_path(),
   "VarsContDiscretizadas.Rdat" |> with_working_path(),
   "VarsFactDiscretizadas.Rdat" |> with_working_path(),
-  "df_con_scores.csv" |> with_working_path(),
   "Estab_ivs_mod_InS.Rdat" |> with_working_path()
-) -> file_list
-if (!par_quick) 
-  c(file_list, "Estab_ivs_cand_InS.Rdat" |> with_working_path()) -> file_list
+) -> file_list_move
+if (!par_quick) {
+  c(
+    file_list_move,
+    "Estab_ivs_cand_InS.Rdat" |> with_working_path()
+  ) -> file_list_move
+}
 # Mueve los archivos al zip.  No guarda los paths
-f.name |> zip(flags = "-r9Xjm", files = file_list)
-if (!fs::file_exists(f.name)) 
-  error_custom("No se logró grabar el archivo {f.name}", 
-               ">"=cli::col_red("Cod 122"))
+f.name |> zip(flags = "-r9Xjm", files = file_list_move)
+# Copia los archivos al zip.
+f.name |> zip(flags = "-r9Xj", files = file_list_keep)
+if (!fs::file_exists(f.name)) {
+  error_custom(
+    "No se logró grabar el archivo {f.name}",
+    ">" = cli::col_red("Cod 122")
+  )
 ```
 
 ```{r End}

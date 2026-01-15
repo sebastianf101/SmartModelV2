@@ -16,11 +16,11 @@ options(dplyr.summarise.inform = FALSE)
 options(tinytex.verbose = TRUE)
 
 # Paquetes
-# 202509, SF: cambié la forma de cargar los paquetes para que sea compatible 
-# con sesiones interactivas de Positron. 
+# 202509, SF: cambié la forma de cargar los paquetes para que sea compatible
+# con sesiones interactivas de Positron.
 # Ahora, desplacé la carga de paquetes como dplyr a Setup.R
-# 
-# options(defaultPackages=c(getOption("defaultPackages"), 
+#
+# options(defaultPackages=c(getOption("defaultPackages"),
 #  "magrittr", "dplyr", "purrr", "gt", "ggplot2", "readr"))
 
 # Set error_handling ------------------------------------------------------------
@@ -33,9 +33,9 @@ options(
   rlang_backtrace_on_error_report = "full"
 )
 
-# Se asume que están cargadas las variables de entorno! 
+# Se asume que están cargadas las variables de entorno!
 
-# Script para ejecutar antes de los Cuadernos. 
+# Script para ejecutar antes de los Cuadernos.
 Sys.getenv("BSM_VERSION") -> version_bsm
 fs::path("/var/data/besmart/versiones", version_bsm) -> version_path
 fs::path("~/Documents/besmart", version_bsm) -> bsm_path
