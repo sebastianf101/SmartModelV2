@@ -521,8 +521,7 @@ if (!par_quick) {
 f.name |> zip(flags = "-r9Xjm", files = file_list_move)
 # Copia los archivos al zip.
 f.name |> zip(flags = "-r9Xj", files = file_list_keep)
-if (!fs::file_exists(f.name)) {
-  error_custom(
+if (!fs::file_exists(f.name)) error_custom(
     "No se logró grabar el archivo {f.name}",
     ">" = cli::col_red("Cod 122")
   )
