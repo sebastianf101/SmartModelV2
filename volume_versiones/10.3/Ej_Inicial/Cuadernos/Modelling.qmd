@@ -61,6 +61,26 @@ En este cuaderno construimos un modelo de score a partir de las variables `r len
 ### Coeficientes del modelo
 
 ```{r ForwardK}
+# Setup Parallelization
+if (requireNamespace("future", quietly = TRUE)) {
+  # Use all cores minus one
+  n_cores <- max(1, parallel::detectCores(logical = FALSE) - 1)
+  future::plan(future::multisession, workers = n_cores)
+  cli::cli_alert_info("Parallel processing enabled with {n_cores} workers.")
+}
+
+# Setup Progress Reporting via JSON
+Sys.setenv(PROGRESS_JSON_PATH = "/app/progress.json")
+
+# Load required libraries for the optimized fwd function
+library(progressr)
+library(future.apply)
+library(jsonlite)
+
+# Enable global progress handlers
+progressr::handlers(global = TRUE)
+progressr::handlers("cli")
+
 res.trad <- tryCatch({
   logit.fwd(train, target = "Good", verbose = FALSE)
   },
@@ -69,7 +89,8 @@ res.trad <- tryCatch({
       error_custom("El método ForwardK no convergió. Intentar con valores de par_weight constantes o constantes por cada valor de par_target.",
                ">"=cli::col_red("Cod 202"))
     } else {
-      error_custom("El método ForwardK no convergió. El método ForwardK no convergió por causas internas. Reportar el caso.",
+       # Enhanced error reporting
+      error_custom(paste0("El método ForwardK no convergió por causas internas. Detalle: ", e$message),
                ">"=cli::col_red("Cod 203"))
     }
     return(NULL)
