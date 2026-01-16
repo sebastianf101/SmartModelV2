@@ -1383,16 +1383,230 @@ graph_min_sizes <- function(bin_factor_res) {
 # Logistic Forward AK -----------------------------------------------------
 # Ojo que se asume Good y .weight en train!
 # usa parámetro par_conf_level
+
+write_progress_json <- function(progress_ratio, current_step, time_elapsed, time_remaining) {
+  # Get the path from an environment variable, defaulting to a specific location
+  json_path <- Sys.getenv("PROGRESS_JSON_PATH", "/app/progress.json")
+  
+  # Create the list of data to write
+  progress_data <- list(
+    progress = progress_ratio,
+    current_step = current_step,
+    time_elapsed = time_elapsed,
+    time_remaining = time_remaining,
+    timestamp = Sys.time()
+  )
+  
+  # Use write_json_atomic to avoid race conditions (conceptually)
+  # Here we rely on jsonlite::write_json being fast enough for small files
+  # or use a temp file + rename approach for atomicity if needed.
+  
+  tmp_path <- paste0(json_path, ".tmp")
+  
+  tryCatch({
+    jsonlite::write_json(progress_data, tmp_path, auto_unbox = TRUE)
+    file.rename(tmp_path, json_path)
+  }, error = function(e) {
+    # If writing fails, we just ignore it to not interrupt the model
+    NULL
+  })
+}
+
+logit_add1_optimized <- function(object, scope, test = "Chisq", p_progress = NULL) {
+  # 1. Setup and Validations
+  if (missing(scope)) stop("no terms in scope for add1")
+  
+  # Extract formula terms from scope
+  if (is.character(scope)) {
+    scope <- as.formula(paste("~", paste(scope, collapse = "+")))
+  }
+  if (is.numeric(scope)) msg_custom("Numeric scope not supported in this optimized version")
+  
+  # Base model details
+  base_terms <- terms(object)
+  base_vars <- all.vars(delete.response(base_terms))
+  
+  # Scope terms
+  scope_terms <- terms(scope)
+  scope_vars <- attr(scope_terms, "term.labels")
+  
+  # Identify candidates (scope vars not in base model)
+  candidates <- setdiff(scope_vars, base_vars)
+  
+  if (length(candidates) == 0) return(NULL)
+  
+  # 2. Pre-compute Model Matrix
+  # Build a combined formula to generate the full model matrix once
+  # We need the response, the current predictors, and all candidate predictors
+  
+  # Construct variable list safely
+  all_vars_fmla <- paste(c(base_vars, candidates), collapse = " + ")
+  if (all_vars_fmla == "") all_vars_fmla <- "1" # Handle intercept only case if needed, though unlikely here
+  
+  full_fmla_str <- paste(as.character(formula(object))[2], "~", all_vars_fmla)
+  full_fmla <- as.formula(full_fmla_str)
+  
+  # Get data from object or environment
+  # Ideally, 'data' should be passed explicitly, but glm stores it in 'data' element if available
+  # or we can access it from the environment.
+  # For logit.step, 'train2' is passed to glm. We need access to it.
+  # 'object' contains 'model' frame if x=FALSE, y=FALSE (defaults).
+  # However, constructing the FULL matrix requires the original data if not all columns were in the model frame.
+  
+  # Helper to get data
+  get_data <- function(fit) {
+    if (!is.null(fit$data)) return(fit$data)
+    if (!is.null(fit$model)) return(fit$model) # This might miss candidate vars if they weren't in the original call scope
+    # Fallback: try to find 'train2' or 'train' from parent environments?
+    # Better: Rely on standard glm behavior (eval in environment)
+    return(environment(formula(fit)))
+  }
+  
+  # In logit.step context, 'train2' is available in the environment where glm was called.
+  # We can try model.frame with the full formula on the original data.
+  
+  # Ensure we have the dataset. 'object$data' is usually set if data= argument was used.
+  if (is.null(object$data)) {
+    # Try to grab data from the call
+    call_data <- object$call$data
+    if (!is.null(call_data)) {
+      data_obj <- eval(call_data, environment(formula(object)))
+    } else {
+      stop("Data object not found in model.")
+    }
+  } else {
+    data_obj <- object$data
+  }
+  
+  # Build full model matrix (includes intercept, base vars, and ALL candidate vars)
+  # This is the memory-intensive part, but usually faster than rebuilding N times
+  # CAUTION: If N*P is huge, this might fail.
+  # But assuming standard memory limits, this is better for speed.
+  
+  # We construct the model frame using standard model.frame logic to handle factors, NAs etc.
+  mf <- model.frame(full_fmla, data = data_obj, na.action = na.pass) # Handle NAs if any specific policy?
+  
+  # Get weights and offset if present
+  wts <- model.weights(mf)
+  if (is.null(wts)) wts <- rep(1, nrow(mf))
+  
+  y <- model.response(mf)
+  
+  # Create the Full Model Matrix (X_full)
+  X_full <- model.matrix(full_fmla, mf)
+  
+  # Identify column indices for Base variables and Candidate variables
+  # Base columns:
+  base_assign <- attr(X_full, "assign")
+  base_labels <- attr(terms(full_fmla), "term.labels")
+  
+  # Map term labels to column indices
+  # 'assign' vector maps each column to a term index (0 for intercept)
+  # term.labels are 1-indexed (intercept is implicit)
+  
+  # Get the indices of terms in the full formula that correspond to the base model
+  # Note: term.labels order might differ from input formula order, need careful matching.
+  
+  # Find which terms in full_fmla correspond to base_vars
+  term_match_idx <- match(base_vars, base_labels)
+  # Intercept is always included if in object
+  has_intercept <- attr(terms(object), "intercept") == 1
+  
+  # Identify base columns in X_full
+  # assign == 0 is Intercept
+  base_cols_idx <- which(base_assign == 0 & has_intercept)
+  if (length(term_match_idx) > 0 & !all(is.na(term_match_idx))) {
+    base_cols_idx <- c(base_cols_idx, which(base_assign %in% term_match_idx))
+  }
+  
+  # 3. Parallel Execution Logic
+  
+  # Function to fit one candidate key
+  # var_name: string name of candidate variable
+  fit_candidate <- function(var_name) {
+    if (!is.null(p_progress)) p_progress(message = sprintf("Testing %s", var_name))
+    
+    # Identify which columns in X_full belong to this candidate variable
+    cand_term_idx <- match(var_name, base_labels)
+    cand_cols_idx <- which(base_assign == cand_term_idx)
+    
+    # Combine base indices and candidate indices
+    current_cols_idx <- c(base_cols_idx, cand_cols_idx)
+    
+    # Subset X map
+    X_curr <- X_full[, current_cols_idx, drop = FALSE]
+    
+    # Fit GLM using specialized fast fitter (glm.fit or speedglm if available, here using stats::glm.fit)
+    # stats::glm.fit is faster than calling glm() repeatedly because it skips model frame building
+    
+    # We need family object
+    fam <- object$family
+    
+    fit <- stats::glm.fit(x = X_curr, y = y, weights = wts, family = fam)
+    
+    # Extract necessary stats for Add1 (LRT test)
+    # df, deviance, AIC
+    
+    # Calculate Chi-Sq (LRT)
+    # LRT = Deviance(Base) - Deviance(Augmented)
+    lrt_stat <- object$deviance - fit$deviance
+    
+    # df difference
+    # df of candidate term = number of columns added (usually)
+    # or df.residual diff
+    df_diff <- object$df.residual - fit$df.residual
+    
+    p_val <- pchisq(lrt_stat, df_diff, lower.tail = FALSE)
+    
+    # Return row as list/vector
+    return(list(
+      Variable = var_name,
+      Df = df_diff,
+      Deviance = fit$deviance,
+      AIC = fit$aic,
+      LRT = lrt_stat,
+      `Pr(>Chi)` = p_val
+    ))
+  }
+  
+  # Use future_lapply for parallelization
+  # chunks scheduling might help balance load
+  results_list <- future.apply::future_lapply(candidates, fit_candidate, future.seed = TRUE)
+  
+  # 4. Result Formatting
+  # Bind rows
+  results_df <- do.call(rbind, lapply(results_list, as.data.frame))
+  
+  # Add the "<none>" row (Base model)
+  none_row <- data.frame(
+    Variable = "<none>",
+    Df = NA,
+    Deviance = object$deviance,
+    AIC = object$aic,
+    LRT = NA,
+    `Pr(>Chi)` = NA
+  )
+  
+  final_res <- rbind(none_row, results_df)
+  
+  return(final_res)
+}
+
 logit.step <- function(train, target, verbose = F,
-                       fmla = as.formula(paste(target, " ~ NULL", sep = ""))) {
+                       fmla = as.formula(paste(target, " ~ NULL", sep = "")),
+                       p_progress = NULL) {
+  
   max.vars <- length(colnames(train)) - 2 # - Good - .weight
   if (max.vars>0) {
     train2 <- train
     fmla.all <- as.formula(paste(target, " ~ ",
                                  paste(paste(colnames(train), collapse = "+")), " - ",target,
                                  " - .weight", sep = ""))
+    
+    # Initial Fit
     mod.step <- stats::glm(fmla, train2, family = "binomial",
                            weights = train2$.weight)
+    
     idx <- 0
     coef.step <- mod.step |> broom::tidy() |>
       select(term, estimate) |>
@@ -1403,30 +1617,55 @@ logit.step <- function(train, target, verbose = F,
     vars.fwd.res <- c()
     var.sel <- "pp"
     vars.step <- c()
+    
     while (idx <= max.vars && all.coef.positives > 0 &&
            length(var.sel)>0 && !is.na(var.sel)) {
+      
       if (verbose) cli::cli_alert_info("idx {idx}")
+      
       mod.curr <- mod.step
+      
       if (max.vars > mod.curr$df.null - mod.curr$df.residual) {
-        vars.fwd <- mod.curr |> add1(scope = fmla.all, test = "Chisq") |>
-          as_tibble(rownames="Variable") |>
-          slice_max(order_by = LRT, n = 10) # Grabo las 10 mejores variables por si hay demasiadas
-        var.sel <- vars.fwd  |>
-          filter(`Pr(>Chi)` < par_conf_level & Variable != "<none>") |>
-          arrange(desc(LRT)) |>
-          slice_head(n = 1) |>
-          select(Variable) |> pull()
+        
+        # Parallelized add1
+        # Note: add1 takes 'scope'. optimized version expects same.
+        vars.fwd_raw <- logit_add1_optimized(mod.curr, scope = fmla.all, test = "Chisq", p_progress = p_progress)
+        
+        if (is.null(vars.fwd_raw)) {
+          # No candidates left
+          vars.fwd <- NULL
+        } else {
+          vars.fwd <- vars.fwd_raw |>
+            as_tibble() |>
+            rename(Variable = Variable) |> # Ensure name consistency
+            slice_max(order_by = LRT, n = 10) # Keep best 10
+        }
+        
+        if (!is.null(vars.fwd)) {
+          var.sel <- vars.fwd  |>
+            filter(`Pr(>Chi)` < par_conf_level & Variable != "<none>") |>
+            arrange(desc(LRT)) |>
+            slice_head(n = 1) |>
+            select(Variable) |> pull()
+        } else {
+          var.sel <- character(0)
+        }
+        
         if (length(var.sel)>0 && !is.na(var.sel)) {
+          # Update model
           mod.step <- update(mod.curr, as.formula(paste(".~.+", var.sel)))
           idx <- idx + 1
-          # A futuro no renombrar y dejar la salida del tidy que tiene  term estimate std.error statistic  p.value
+          
+          # Coefficients check
           mod.step |> broom::tidy() |> select(term, estimate) |>
             rename(Variable=term, Beta=estimate) |>
             mutate(Paso=idx) -> coef.step
+          
           coef.step |>
             filter(Variable!="(Intercept)") |>
             mutate(sign = sign(Beta),
                    order=row_number()) -> tab_coef
+          
           if (all(tab_coef$sign == 1)) {
             all.coef.positives <- 1
             coef.steps <- coef.steps |> bind_rows(coef.step)
@@ -1435,33 +1674,29 @@ logit.step <- function(train, target, verbose = F,
             vars.step <- c(vars.step, var.sel)
             fmla <- mod.curr$formula
           } else {
-            # Apareció un coef negativo!
-            # Salvo sólo las positivas anteriores si hay.
+            # Negative coefficient logic (backtracking/stopping)
             tab_coef |>
               filter(sign == -1) |>
               summarise(first_negative = min(order),
                         last_negative = max(order)) -> tab_coef_neg
-            tab_coef_neg |>
-              pull(first_negative) -> first_negative_coef
-            tab_coef_neg |>
-              pull(last_negative) -> last_negative_coef
-            tab_coef |>
-              filter(order < first_negative_coef) |>
-              pull(Variable) -> positive_coef_vars
-            tab_coef |>
-              filter(order >= first_negative_coef) |>
-              pull(Variable) -> neg_or_after_neg_coef_vars
-            # FwdK elimina la ultima variable con coef negativo de las candidatas
-            # en el siguiente paso retoma el ajuste quedandose las variables antes
-            # de la primera negativa
-            tab_coef |>
-              filter(order == last_negative_coef) |>
-              pull(Variable) -> var.sel
+            
+            tab_coef_neg |> pull(first_negative) -> first_negative_coef
+            tab_coef_neg |> pull(last_negative) -> last_negative_coef
+            
+            tab_coef |> filter(order < first_negative_coef) |> pull(Variable) -> positive_coef_vars
+            tab_coef |> filter(order >= first_negative_coef) |> pull(Variable) -> neg_or_after_neg_coef_vars
+            
+            tab_coef |> filter(order == last_negative_coef) |> pull(Variable) -> var.sel_removed
+            
+            var.sel <- var.sel_removed # Used for logging? or is it?
+            
             vars.step <- neg_or_after_neg_coef_vars
-            if (verbose) cli::cli_alert_info("Variable {var.sel} eliminada de las candidatas por coeficiente negativo")
-            if (verbose &&
-                (length(neg_or_after_neg_coef_vars) > 1)) cli::cli_alert_danger(
-                  "Se retrocede más de un lugar en el FwdK! Se eliminan {neg_or_after_neg_coef_vars} de la fórmula actual")
+            
+            if (verbose) cli::cli_alert_info("Variable {var.sel_removed} eliminada de las candidatas por coeficiente negativo")
+            if (verbose && (length(neg_or_after_neg_coef_vars) > 1)) {
+              cli::cli_alert_danger("Se retrocede más de un lugar en el FwdK! Se eliminan {neg_or_after_neg_coef_vars} de la fórmula actual")
+            }
+            
             if (length(positive_coef_vars) == 0) {
               fmla <- as.formula(paste(target, " ~ NULL", sep = ""))
             } else {
@@ -1494,57 +1729,97 @@ logit.step <- function(train, target, verbose = F,
 }
 
 logit.fwd <- function(train, target, verbose = F) {
-  train2 <- train
-  idx_outer <- 1
-  if (verbose) {
-    cli::cli_alert_info("Secuencia Fwd {idx_outer}.")
-  }
-  vars.excl <- c()
-  res.step <- logit.step(train2, target, verbose = verbose)
-  vars.ajustes.fwd <- res.step$vars.fwd.res |> mutate(Ajuste = idx_outer)
-  if (is.null(res.step$vars.fwd.res) || nrow(res.step$vars.fwd.res) == 0) {
-    error_custom(
-      'Parámetros faltantes!',
-      "i" = 'FwdK no pudo seleccionar variables!',
-      ">" = cli::col_red("204")
-    )
-  }
-  coef.steps <- res.step$coef.steps |> mutate(Ajuste = idx_outer)
-  while (
-    res.step$all.coef.positives < 0 &&
-      length(res.step$var.sel) > 0 &&
-      !is.na(res.step$var.sel)
-  ) {
-    vars.excl <- c(vars.excl, res.step$var.sel)
-    train2 <- train2 |> select(-one_of(res.step$var.sel))
-    res.step <- logit.step(
-      train2,
-      target,
-      verbose = verbose,
-      fmla = res.step$fmla
-    )
-    idx_outer <- idx_outer + 1
-    coef.steps <- bind_rows(
-      coef.steps,
-      res.step$coef.steps |> mutate(Ajuste = idx_outer)
-    )
-    if (
-      !is.null(res.step$vars.fwd.res) &&
-        nrow(res.step$vars.fwd.res) > 0
-    ) {
-      vars.ajustes.fwd <- bind_rows(
-        vars.ajustes.fwd,
-        res.step$vars.fwd.res |> mutate(Ajuste = idx_outer)
+  
+  progressr::with_progress({
+    # Setup Progress Handler
+    p <- progressr::progressor(steps = 20) # Estimate 20 steps max usually
+    start_time <- Sys.time()
+    
+    p_wrapper <- function(message = NULL) {
+      if(!is.null(message)) {
+        # Optional: fine grained reporting
+        # p(message = message, amount = 0) 
+      }
+    }
+    
+    train2 <- train
+    idx_outer <- 1
+    if (verbose) {
+      cli::cli_alert_info("Secuencia Fwd {idx_outer}.")
+    }
+    vars.excl <- c()
+    
+    # 1st Step
+    p(message = sprintf("Step %d: Initial selection", idx_outer))
+    
+    res.step <- logit.step(train2, target, verbose = verbose, p_progress = p_wrapper)
+    
+    # JSON Progress Update
+    elapsed <- as.numeric(difftime(Sys.time(), start_time, units = "secs"))
+    # Rough estimate: if we did 1 step and assume 10 steps total...
+    ratio <- min(idx_outer / 15, 0.95) # 15 is arbitrary average complexity
+    write_progress_json(ratio, idx_outer, elapsed, -1)
+    
+    vars.ajustes.fwd <- res.step$vars.fwd.res |> mutate(Ajuste = idx_outer)
+    if (is.null(res.step$vars.fwd.res) || nrow(res.step$vars.fwd.res) == 0) {
+      error_custom(
+        'Parámetros faltantes!',
+        "i" = 'FwdK no pudo seleccionar variables!',
+        ">" = cli::col_red("204")
       )
     }
-  }
-
-  return(list(
-    vars.excl = vars.excl,
-    vars.ajustes.fwd = vars.ajustes.fwd,
-    coef.steps = coef.steps,
-    det = res.step
-  ))
+    coef.steps <- res.step$coef.steps |> mutate(Ajuste = idx_outer)
+    
+    while (
+      res.step$all.coef.positives < 0 &&
+      length(res.step$var.sel) > 0 &&
+      !is.na(res.step$var.sel)
+    ) {
+      # Loop for negative coefficients backtracking
+      idx_outer <- idx_outer + 1
+      p(message = sprintf("Step %d: Backtracking/Refining", idx_outer))
+      
+      vars.excl <- c(vars.excl, res.step$var.sel)
+      train2 <- train2 |> select(-one_of(res.step$var.sel))
+      
+      res.step <- logit.step(
+        train2,
+        target,
+        verbose = verbose,
+        fmla = res.step$fmla,
+        p_progress = p_wrapper
+      )
+      
+      # JSON Progress Update
+      elapsed <- as.numeric(difftime(Sys.time(), start_time, units = "secs"))
+      ratio <- min(idx_outer / 15, 0.99)
+      write_progress_json(ratio, idx_outer, elapsed, -1)
+      
+      coef.steps <- bind_rows(
+        coef.steps,
+        res.step$coef.steps |> mutate(Ajuste = idx_outer)
+      )
+      if (
+        !is.null(res.step$vars.fwd.res) &&
+        nrow(res.step$vars.fwd.res) > 0
+      ) {
+        vars.ajustes.fwd <- bind_rows(
+          vars.ajustes.fwd,
+          res.step$vars.fwd.res |> mutate(Ajuste = idx_outer)
+        )
+      }
+    }
+    
+    # Final 100%
+    write_progress_json(1.0, idx_outer, as.numeric(difftime(Sys.time(), start_time, units = "secs")), 0)
+    
+    return(list(
+      vars.excl = vars.excl,
+      vars.ajustes.fwd = vars.ajustes.fwd,
+      coef.steps = coef.steps,
+      det = res.step
+    ))
+  })
 }
 
 # Generación de SQL ----------------------------------------------------------
