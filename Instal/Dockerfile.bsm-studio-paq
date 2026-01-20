@@ -84,5 +84,7 @@ DiagrammeR \
 # for rendering HTML equations
 katex \
 # Already included in former dependencies.  Just in case. 
-diffobj
+diffobj \
+# for parallel stepwise logistic regression (add.term)
+Rfast2
 
