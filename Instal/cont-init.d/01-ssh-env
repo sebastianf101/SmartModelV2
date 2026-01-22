@@ -1,0 +1,22 @@
+#!/usr/bin/with-contenv bash
+set -e
+
+# Export all Docker Compose environment variables to SSH environment for all users
+_USERS="$(awk -F: '/\/home/ && ($3 >= 1000) && ($3 < 2000) {print $1}' /etc/passwd)"
+
+for u in $_USERS
+do
+   ssh_dir="/home/${u}/.ssh"
+   env_file="$ssh_dir/environment"
+
+   # Ensure .ssh directory exists
+   mkdir -p "$ssh_dir"
+
+   # Export all environment variables from Docker Compose to SSH environment
+   # Exclude problematic variables (HOME, PATH variants, system vars)
+   printenv | grep -v '^_' | grep -v '^SHLVL=' | grep -v '^PWD=' | grep -v '^HOME=' > "$env_file" || touch "$env_file"
+
+   # Set proper ownership and permissions
+   chown "$(id -un $u):$(id -gn $u)" "$env_file"
+   chmod 600 "$env_file"
+done

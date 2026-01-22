@@ -1383,12 +1383,17 @@ graph_min_sizes <- function(bin_factor_res) {
 # Logistic Forward AK -----------------------------------------------------
 # Ojo que se asume Good y .weight en train!
 # usa parámetro par_conf_level
+#
+# OPTIMIZATION: Rfast2::add.term provides 2-3x speedup in batch/Rscript mode
+# - Batch mode (Rscript): Enables Rfast2 by default with optimized threading
+# - Interactive mode (IDE): Uses stats::add1 by default (Rfast2 causes crashes)
+# - Override: Set USE_RFAST2="FALSE" to disable, or "TRUE" to force enable
 
 # Progress JSON writer for external monitoring (e.g., container dashboards)
 write_progress_json <- function(progress_ratio, current_step, time_elapsed, time_remaining) {
   json_path <- Sys.getenv("PROGRESS_JSON_PATH", "")
   if (json_path == "") return(invisible(NULL))
-  
+
   progress_data <- list(
     progress = progress_ratio,
     current_step = current_step,
@@ -1396,7 +1401,7 @@ write_progress_json <- function(progress_ratio, current_step, time_elapsed, time
     time_remaining = time_remaining,
     timestamp = Sys.time()
   )
-  
+
   tmp_path <- paste0(json_path, ".tmp")
   tryCatch({
     jsonlite::write_json(progress_data, tmp_path, auto_unbox = TRUE)
@@ -1404,29 +1409,70 @@ write_progress_json <- function(progress_ratio, current_step, time_elapsed, time
   }, error = function(e) NULL)
 }
 
-logit.step <- function(train, target, verbose = FALSE,
-                       fmla = as.formula(paste(target, " ~ NULL", sep = ""))) {
-  
+logit.step <- function(
+  train,
+  target,
+  verbose = FALSE,
+  fmla = as.formula(paste(target, " ~ NULL", sep = ""))
+) {
   # Predictor columns: exclude target and .weight
   pred_cols <- setdiff(colnames(train), c(target, ".weight"))
   max.vars <- length(pred_cols)
-  
- if (max.vars <= 0) return(NULL)
-  
-  # Prepare matrices for Rfast2::add.term (computed once)
-  y <- as.numeric(as.character(train[[target]]))
-  wts <- train$.weight
-  X_all <- as.matrix(train[, pred_cols, drop = FALSE])
-  
+
+  if (max.vars <= 0) {
+    return(NULL)
+  }
+
+  # Check if weights are uniform (enables Rfast2 optimization)
+  weights_uniform <- length(unique(train$.weight)) == 1
+
+  # Determine if Rfast2 optimization should be used
+  # CRITICAL: In interactive mode, ALWAYS use add1() because:
+  #   - Rfast2 with parallel=TRUE crashes in IDE
+  #   - Rfast2 with parallel=FALSE is SLOWER than add1() (22s vs 11-14s)
+  # Only in batch mode (Rscript) do we get the 2.9x speedup from Rfast2+parallel
+  use_rfast2_default <- if (interactive()) "FALSE" else "TRUE"
+  use_rfast2 <- weights_uniform &&
+    Sys.getenv("USE_RFAST2", use_rfast2_default) == "TRUE" &&
+    !interactive()  # Force disable in interactive regardless of env var
+
+  cli::cli_alert_info(
+    "Value of USE_RFAST2: {Sys.getenv('USE_RFAST2', 'not set')} | Weights uniform: {weights_uniform} | Using Rfast2: {use_rfast2}"
+  )
+
+  if (use_rfast2) {
+    # Load Rfast2 only if needed
+    if (!requireNamespace("Rfast2", quietly = TRUE)) {
+      cli::cli_alert_warning("Rfast2 not installed, using add1()")
+      use_rfast2 <- FALSE
+    } else {
+      library(Rfast2)
+
+      # Optimize OpenMP threading for Rfast2 performance
+      if (Sys.getenv("OMP_NUM_THREADS", "") == "") {
+        # Set to 8 threads if not already configured
+        Sys.setenv(OMP_NUM_THREADS = "8")
+      }
+
+      y <- as.numeric(as.character(train[[target]]))
+      X_all <- as.matrix(train[, pred_cols, drop = FALSE])
+      if (verbose) {
+        cli::cli_alert_info("Using Rfast2 optimization (2-3x faster)")
+      }
+    }
+  }
+
   # Build initial scope formula (excludes target and .weight from the start)
   fmla.all <- as.formula(paste(target, "~", paste(pred_cols, collapse = " + ")))
-  
+
   # Initial GLM fit
-  mod.step <- stats::glm(fmla, train, family = "binomial", weights = train$.weight)
-  
-  # Extract deviance for Rfast2
- devi_0 <- mod.step$deviance
-  
+  mod.step <- stats::glm(
+    fmla,
+    train,
+    family = "binomial",
+    weights = train$.weight
+  )
+
   idx <- 0
   coef.step <- mod.step |>
     broom::tidy() |>
@@ -1439,75 +1485,107 @@ logit.step <- function(train, target, verbose = FALSE,
   var.sel <- "init"
   vars.step <- character()
   included_vars <- character()
-  
-  while (idx <= max.vars && all.coef.positives > 0 &&
-         length(var.sel) > 0 && !is.na(var.sel)) {
-    
-    if (verbose) cli::cli_alert_info("idx {idx}")
+
+  while (
+    idx <= max.vars &&
+      all.coef.positives > 0 &&
+      length(var.sel) > 0 &&
+      !is.na(var.sel)
+  ) {
+    if (verbose) {
+      cli::cli_alert_info("idx {idx}")
+    }
     mod.curr <- mod.step
-    
+
     # Candidate variables: those not yet included
     candidate_vars <- setdiff(pred_cols, included_vars)
-    
+
     if (length(candidate_vars) == 0) {
       var.sel <- NA
       all.coef.positives <- 0
       next
     }
-    
-    # Build xinc: intercept + included vars (or just intercept if none)
-    if (length(included_vars) == 0) {
-      xinc <- matrix(1, nrow = nrow(train), ncol = 1)
+
+    # HYBRID APPROACH: Use Rfast2 in batch mode for speed, add1() in interactive
+    if (use_rfast2) {
+      # FAST PATH: Rfast2 (2-3x faster than add1 in batch mode)
+      if (length(included_vars) == 0) {
+        xinc <- matrix(1, nrow = nrow(train), ncol = 1)
+      } else {
+        xinc <- cbind(1, X_all[, included_vars, drop = FALSE])
+      }
+
+      xout <- X_all[, candidate_vars, drop = FALSE]
+      devi_0 <- mod.step$deviance
+
+      # CRITICAL: parallel=TRUE causes crashes in IDE/interactive R sessions
+      # Only enable in true batch mode (Rscript)
+      use_parallel <- !interactive() &&
+        Sys.getenv("RFAST2_PARALLEL", "TRUE") == "TRUE"
+
+      cli::cli_alert_info("Using Rfast2 parallel = {use_parallel}")
+
+      # Suppress RcppArmadillo singular matrix warnings (non-fatal, numerical precision)
+      add_res <- suppressWarnings({
+        Rfast2::add.term(
+          y,
+          xinc,
+          xout,
+          devi_0,
+          type = "logistic",
+          logged = TRUE,
+          parallel = use_parallel
+        )
+      })
+
+      vars.fwd <- tibble(
+        Variable = candidate_vars,
+        LRT = add_res[, 1],
+        log_pval = add_res[, 2]
+      ) |>
+        mutate(pval = exp(log_pval)) |>
+        arrange(desc(LRT)) |>
+        slice_head(n = 10)
     } else {
-      xinc <- cbind(1, X_all[, included_vars, drop = FALSE])
+      # DEFAULT PATH: add1() (reliable and usually faster than Rfast2)
+      add_res <- stats::add1(mod.curr, scope = fmla.all, test = "LRT")
+
+      vars.fwd <- add_res |>
+        as_tibble(rownames = "Variable") |>
+        filter(Variable != "<none>") |>
+        rename(pval = `Pr(>Chi)`) |>
+        arrange(desc(LRT)) |>
+        slice_head(n = 10)
     }
-    
-    # Build xout: candidate variables matrix
-    xout <- X_all[, candidate_vars, drop = FALSE]
-    
-    # Parallel candidate evaluation via Rfast2::add.term
-    add_res <- Rfast2::add.term(y, xinc, xout, devi_0,
-                                type = "logistic", logged = TRUE,
-                                parallel = TRUE, wei = wts)
-    
-    # add_res is a matrix: rows = candidates, cols = [stat, logged.pvalue]
-    vars.fwd <- tibble(
-      Variable = candidate_vars,
-      LRT = add_res[, 1],
-      log_pval = add_res[, 2]
-    ) |>
-      mutate(pval = exp(log_pval)) |>
-      arrange(desc(LRT)) |>
-      slice_head(n = 10)
-    
+
     # Select best candidate
     var.sel <- vars.fwd |>
       filter(pval < par_conf_level) |>
       slice_head(n = 1) |>
       pull(Variable)
-    
+
     if (length(var.sel) > 0 && !is.na(var.sel)) {
       # Update model
       mod.step <- update(mod.curr, as.formula(paste(".~.+", var.sel)))
       idx <- idx + 1
       devi_0 <- mod.step$deviance
       included_vars <- c(included_vars, var.sel)
-      
+
       # Coefficients check
       coef.step <- mod.step |>
         broom::tidy() |>
         select(term, estimate) |>
         rename(Variable = term, Beta = estimate) |>
         mutate(Paso = idx)
-      
+
       tab_coef <- coef.step |>
         filter(Variable != "(Intercept)") |>
         mutate(sign = sign(Beta), order = row_number())
-      
+
       if (all(tab_coef$sign == 1)) {
         all.coef.positives <- 1
         coef.steps <- bind_rows(coef.steps, coef.step)
-        
+
         # Compute full stats for selected variable only (Deviance, AIC, Df)
         winner_stats <- tibble(
           Variable = var.sel,
@@ -1521,40 +1599,45 @@ logit.step <- function(train, target, verbose = FALSE,
         vars.fwd.res <- bind_rows(vars.fwd.res, winner_stats)
         vars.step <- c(vars.step, var.sel)
         fmla <- mod.curr$formula
-        
       } else {
         # Negative coefficient detected: backtrack
         tab_coef_neg <- tab_coef |>
           filter(sign == -1) |>
           summarise(first_negative = min(order), last_negative = max(order))
-        
+
         first_negative_coef <- tab_coef_neg$first_negative
         last_negative_coef <- tab_coef_neg$last_negative
-        
+
         positive_coef_vars <- tab_coef |>
           filter(order < first_negative_coef) |>
           pull(Variable)
         neg_or_after_neg_coef_vars <- tab_coef |>
           filter(order >= first_negative_coef) |>
           pull(Variable)
-        
+
         var.sel <- tab_coef |>
           filter(order == last_negative_coef) |>
           pull(Variable)
-        
+
         vars.step <- neg_or_after_neg_coef_vars
-        
+
         if (verbose) {
-          cli::cli_alert_info("Variable {var.sel} eliminada por coeficiente negativo")
+          cli::cli_alert_info(
+            "Variable {var.sel} eliminada por coeficiente negativo"
+          )
         }
         if (verbose && length(neg_or_after_neg_coef_vars) > 1) {
           cli::cli_alert_danger("Se retrocede más de un lugar en FwdK!")
         }
-        
+
         if (length(positive_coef_vars) == 0) {
           fmla <- as.formula(paste(target, " ~ NULL", sep = ""))
         } else {
-          fmla <- as.formula(paste(target, "~", paste(positive_coef_vars, collapse = " + ")))
+          fmla <- as.formula(paste(
+            target,
+            "~",
+            paste(positive_coef_vars, collapse = " + ")
+          ))
         }
         all.coef.positives <- -1
       }
@@ -1563,7 +1646,7 @@ logit.step <- function(train, target, verbose = FALSE,
       all.coef.positives <- 0
     }
   }
-  
+
   return(list(
     all.coef.positives = all.coef.positives,
     idx = idx,
@@ -1577,20 +1660,20 @@ logit.step <- function(train, target, verbose = FALSE,
 }
 
 logit.fwd <- function(train, target, verbose = FALSE) {
-  
+
   start_time <- Sys.time()
   train2 <- train
   idx_outer <- 1
-  
+
   if (verbose) cli::cli_alert_info("Secuencia Fwd {idx_outer}.")
-  
+
   vars.excl <- character()
   res.step <- logit.step(train2, target, verbose = verbose)
-  
+
   # Progress update
   elapsed <- as.numeric(difftime(Sys.time(), start_time, units = "secs"))
   write_progress_json(0.1, idx_outer, elapsed, -1)
-  
+
   if (is.null(res.step$vars.fwd.res) || nrow(res.step$vars.fwd.res) == 0) {
     error_custom(
       'Parámetros faltantes!',
@@ -1598,31 +1681,31 @@ logit.fwd <- function(train, target, verbose = FALSE) {
       ">" = cli::col_red("204")
     )
   }
-  
+
   # Rename pval -> `Pr(>Chi)` for downstream compatibility
   vars.ajustes.fwd <- res.step$vars.fwd.res |>
     rename(`Pr(>Chi)` = pval) |>
     mutate(Ajuste = idx_outer)
-  
+
   coef.steps <- res.step$coef.steps |> mutate(Ajuste = idx_outer)
-  
+
   while (res.step$all.coef.positives < 0 &&
          length(res.step$var.sel) > 0 &&
          !is.na(res.step$var.sel)) {
-    
+
     vars.excl <- c(vars.excl, res.step$var.sel)
     train2 <- train2 |> select(-all_of(res.step$var.sel))
-    
+
     res.step <- logit.step(train2, target, verbose = verbose, fmla = res.step$fmla)
     idx_outer <- idx_outer + 1
-    
+
     # Progress update
     elapsed <- as.numeric(difftime(Sys.time(), start_time, units = "secs"))
     ratio <- min(idx_outer / 15, 0.99)
     write_progress_json(ratio, idx_outer, elapsed, -1)
-    
+
     coef.steps <- bind_rows(coef.steps, res.step$coef.steps |> mutate(Ajuste = idx_outer))
-    
+
     if (!is.null(res.step$vars.fwd.res) && nrow(res.step$vars.fwd.res) > 0) {
       vars.ajustes.fwd <- bind_rows(
         vars.ajustes.fwd,
@@ -1630,11 +1713,11 @@ logit.fwd <- function(train, target, verbose = FALSE) {
       )
     }
   }
-  
+
   # Final progress
   elapsed <- as.numeric(difftime(Sys.time(), start_time, units = "secs"))
   write_progress_json(1.0, idx_outer, elapsed, 0)
-  
+
   return(list(
     vars.excl = vars.excl,
     vars.ajustes.fwd = vars.ajustes.fwd,

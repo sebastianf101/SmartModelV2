@@ -16,7 +16,29 @@ do
       echo "Copiando $orig_path en $dest_path"
       /bin/cp -rf "$orig_path" "$dest_path"
    done
+   # Create .bashrc for non-login shells (Positron, etc.)
+   bashrc_file="/home/${u}/.bashrc"
+   if [ ! -f "$bashrc_file" ]; then
+      cat > "$bashrc_file" <<'EOF'
+# SmartModel environment setup
+if [ -n "$BSM_DIR" ] && [ -d "$BSM_DIR" ]; then
+    cd "$BSM_DIR"
+fi
+EOF
+   fi
+
+   # Create .bash_profile for SSH login shells to set up BSM environment
+   bash_profile="/home/${u}/.bash_profile"
+   if [ ! -f "$bash_profile" ]; then
+      cat > "$bash_profile" <<'EOF'
+# Source .bashrc if it exists
+if [ -f ~/.bashrc ]; then
+    . ~/.bashrc
+fi
+EOF
+   fi
+
    # Ajusta los permisos desde cada user home.
-   chown -R $(id -un $u):$(id -gn $u) "/home/${u}" 
-   chmod 0775 "/home/${u}" 
+   chown -R $(id -un $u):$(id -gn $u) "/home/${u}"
+   chmod 0775 "/home/${u}"
 done

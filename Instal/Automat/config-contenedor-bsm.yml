@@ -22,10 +22,16 @@ services:
       LANG: "es_AR.UTF-8"
       TZ: "America/Argentina/Buenos_Aires"
       LC_ALL: "es_AR.UTF-8"
+      # Progress monitoring (Rfast2 stepwise logistic)
+      PROGRESS_JSON_PATH: "${BSM_DIR}/Logs/progress.json"
+      # Rfast2 optimization: "TRUE" in batch, "FALSE" in interactive (default: auto-detect)
+      USE_RFAST2: "${USE_RFAST2:-}"
     volumes:
       - smartmodel-app-data:/data
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
+      # Expose progress file for external monitoring
+      - ${BSM_PROGRESS_DIR:-/tmp/sm-progress}:${BSM_DIR}/Logs:rw
     networks:
       - smartmodel-net
     deploy:

@@ -7,9 +7,9 @@ BSM_VERSION="${BSM_VERSION:-}"
 
 DEFAULT_LOG_DIR="/var/log/explorador_ivs_api"
 if [ -n "${BSM_DIR:-}" ]; then
-  DEFAULT_LOG_DIR="${BSM_DIR}/logs/explorador_ivs_api"
+  DEFAULT_LOG_DIR="${BSM_DIR}/Logs/explorador_ivs_api"
 elif [ -n "$BSM_VERSION" ]; then
-  DEFAULT_LOG_DIR="/home/${BSM_USER}/Documents/besmart/${BSM_VERSION}/logs/explorador_ivs_api"
+  DEFAULT_LOG_DIR="/home/${BSM_USER}/Documents/besmart/${BSM_VERSION}/Logs/explorador_ivs_api"
 fi
 
 LOG_DIR="${API_LOG_DIR:-$DEFAULT_LOG_DIR}"
@@ -17,7 +17,12 @@ MAX_FILES="${API_LOG_MAX_FILES:-10}"
 MAX_SIZE="${API_LOG_MAX_SIZE:-5242880}"
 
 mkdir -p "$LOG_DIR"
-chown "$BSM_USER":"$BSM_GROUP" "$LOG_DIR"
+# Ensure the Logs directory and all its contents are owned by BSM_USER
+# Find the Logs root directory (e.g., ${BSM_DIR}/Logs)
+LOGS_ROOT="${BSM_DIR}/Logs"
+if [ -d "$LOGS_ROOT" ]; then
+  chown -R "$BSM_USER":"$BSM_GROUP" "$LOGS_ROOT"
+fi
 
 echo "[api/log] starting Explorador IVs API logging"
 echo "[api/log] LOG_DIR=${LOG_DIR}"

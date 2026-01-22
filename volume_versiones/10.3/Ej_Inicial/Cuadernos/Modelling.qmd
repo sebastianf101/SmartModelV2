@@ -69,14 +69,6 @@ if (requireNamespace("future", quietly = TRUE)) {
   cli::cli_alert_info("Parallel processing enabled with {n_cores} workers.")
 }
 
-# Setup Progress Reporting via JSON
-Sys.setenv(PROGRESS_JSON_PATH = "/app/progress.json")
-
-# Load required libraries for the optimized fwd function
-library(progressr)
-library(future.apply)
-library(jsonlite)
-
 # Enable global progress handlers
 progressr::handlers(global = TRUE)
 progressr::handlers("cli")
