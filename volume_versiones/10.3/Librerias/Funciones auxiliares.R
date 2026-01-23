@@ -6,22 +6,56 @@
 
 msg_custom <- function(..., encl_left = '>>>>¡', encl_right = '!<<<<',
                        call = rlang::caller_env()) {
-  cli::format_message(message = c(encl_left, ..., encl_right), .envir = call)
+  message <- cli::format_inline(...)
+  log_info(glue::glue("{encl_left} {message} {encl_right}"))
+
+  # In batch mode (rendering notebooks), don't output to console
+  # The logging system already handles this via log_info()
+  invisible(NULL)
 }
 
 error_custom <- function(...,
                          encl_left = '>>>>¡', encl_right = '!<<<<',
                          err=NULL, call = rlang::caller_env()) {
-  # NO uso msg_customo porque no separa por lineas!
-  cli::cli_abort(message = c(encl_left, err$message, ..., encl_right),
-                 parent = err, .envir = call)
+  # Collect error message parts without cli formatting to avoid brace interpretation issues
+  dots_list <- list(...)
+
+  # Separate named arguments (like ">" for error code) from message parts
+  is_named <- names(dots_list) != ""
+  if (is.null(names(dots_list))) {
+    is_named <- rep(FALSE, length(dots_list))
+  }
+
+  message_parts <- dots_list[!is_named]
+
+  # Build error message directly
+  error_msg <- paste(unlist(message_parts), collapse = " ")
+
+  # Extract error code if present
+  code <- NULL
+  code_match <- grep("^>.*Cod [0-9]+", dots_list, value = TRUE)
+  if (length(code_match) > 0) {
+    code <- sub(".*Cod ([0-9]+).*", "\\1", code_match[1])
+  }
+
+  log_error(glue::glue("{encl_left} {error_msg} {encl_right}"), code = code)
+
+  # Build error message without cli output (already logged)
+  full_msg <- paste0(encl_left, " ", error_msg, " ", encl_right)
+
+  # Stop execution with rlang::abort for better error handling
+  rlang::abort(
+    message = full_msg,
+    parent = err,
+    call = call
+  )
 }
 
 # sec 19.5
 commas <- function(...) stringr::str_c(..., collapse = ", ")
 show_missings <- function(df) {
   n <- sum(is.na(df))
-  cat("Missing values: ", n, "\n", sep = "")
+  log_debug(paste("Missing values:", n))
   invisible(df)
 }
 
@@ -182,8 +216,12 @@ anulador <- function(data, var, val) {
   } else if (class(data[[var]]) == 'character') {
     if (val == 'NA') NA_character_ -> new_val
     else as.character(val) -> new_val
-  } else cli::cli_abort(c("Error procesando conversión a nulos",
-                          "i" = "Se esperaba {var} numérica o string"))
+  } else {
+    error_custom(
+      "Error procesando conversión a nulos",
+      "i" = paste("Se esperaba", var, "numérica o string")
+    )
+  }
 
   data |>
     mutate("{ `var` }" := na_if(.data[[var]], new_val))
@@ -392,7 +430,7 @@ bin.sf <- function(df, nbins, minpts, nvals.min = 5, verbose = F, tol = 10) {
   }
 
   if (verbose) {
-    print(bin)
+    log_debug("Bins created successfully")
   }
   return(list(bins = bins, error = F))
 }
@@ -968,7 +1006,7 @@ bin_monot <- function(
     tol = 0.05
   ) -> cond
   if (!cond) {
-    warning(paste(
+    log_warn(paste(
       "Atención! Revisar discrepancias en entre tablas tab_iv_stp y tab_iv_pwl",
       "en binning de variable",
       x
@@ -983,9 +1021,9 @@ bin_monot <- function(
     pluck('res') -> check_monot
 
   if (!check_monot) {
-    cli::cli_warn(
-      "Los bines no nulos del método escalera para la variable {x} no son monótonos!"
-    )
+    log_warn(paste(
+      "Los bines no nulos del método escalera para la variable", x, "no son monótonos!"
+    ))
   }
 
   tab_iv_pwl |>
@@ -995,9 +1033,9 @@ bin_monot <- function(
     pluck('res') -> check_monot
 
   if (!check_monot) {
-    cli::cli_warn(
-      "Los bines no nulos del método rampas para la variable {x} no son monótonos!"
-    )
+    log_warn(paste(
+      "Los bines no nulos del método rampas para la variable", x, "no son monótonos!"
+    ))
   }
 
   iv_monot_discret <- tab_iv_stp |>
@@ -1395,18 +1433,25 @@ write_progress_json <- function(progress_ratio, current_step, time_elapsed, time
   if (json_path == "") return(invisible(NULL))
 
   progress_data <- list(
+    session_id = log_get_session_id(),
     progress = progress_ratio,
     current_step = current_step,
     time_elapsed = time_elapsed,
     time_remaining = time_remaining,
-    timestamp = Sys.time()
+    timestamp = format(Sys.time(), "%Y-%m-%d %H:%M:%OS3"),
+    notebook = .bsm_log_state$current_notebook %||% "-"
   )
 
   tmp_path <- paste0(json_path, ".tmp")
   tryCatch({
-    jsonlite::write_json(progress_data, tmp_path, auto_unbox = TRUE)
+    jsonlite::write_json(progress_data, tmp_path, auto_unbox = TRUE, pretty = TRUE)
     file.rename(tmp_path, json_path)
-  }, error = function(e) NULL)
+    # Use paste to avoid cli interpolation issues
+    log_trace(paste0("Progress updated: ", round(progress_ratio * 100, 1), "% - Step ", current_step))
+  }, error = function(e) {
+    # Avoid cli interpolation of error message by using paste
+    log_warn(paste("Failed to write progress.json:", e$message))
+  })
 }
 
 logit.step <- function(
@@ -1436,14 +1481,15 @@ logit.step <- function(
     Sys.getenv("USE_RFAST2", use_rfast2_default) == "TRUE" &&
     !interactive()  # Force disable in interactive regardless of env var
 
-  cli::cli_alert_info(
-    "Value of USE_RFAST2: {Sys.getenv('USE_RFAST2', 'not set')} | Weights uniform: {weights_uniform} | Using Rfast2: {use_rfast2}"
-  )
+  log_debug(paste(
+    "Value of USE_RFAST2:", Sys.getenv('USE_RFAST2', 'not set'),
+    "| Weights uniform:", weights_uniform, "| Using Rfast2:", use_rfast2
+  ))
 
   if (use_rfast2) {
     # Load Rfast2 only if needed
     if (!requireNamespace("Rfast2", quietly = TRUE)) {
-      cli::cli_alert_warning("Rfast2 not installed, using add1()")
+      log_warn("Rfast2 not installed, using add1()")
       use_rfast2 <- FALSE
     } else {
       library(Rfast2)
@@ -1457,7 +1503,7 @@ logit.step <- function(
       y <- as.numeric(as.character(train[[target]]))
       X_all <- as.matrix(train[, pred_cols, drop = FALSE])
       if (verbose) {
-        cli::cli_alert_info("Using Rfast2 optimization (2-3x faster)")
+        log_info("Using Rfast2 optimization (2-3x faster)")
       }
     }
   }
@@ -1493,7 +1539,7 @@ logit.step <- function(
       !is.na(var.sel)
   ) {
     if (verbose) {
-      cli::cli_alert_info("idx {idx}")
+      log_info(paste("idx", idx))
     }
     mod.curr <- mod.step
 
@@ -1523,7 +1569,7 @@ logit.step <- function(
       use_parallel <- !interactive() &&
         Sys.getenv("RFAST2_PARALLEL", "TRUE") == "TRUE"
 
-      cli::cli_alert_info("Using Rfast2 parallel = {use_parallel}")
+      if (verbose) log_info(paste("Using Rfast2 parallel =", use_parallel))
 
       # Suppress RcppArmadillo singular matrix warnings (non-fatal, numerical precision)
       add_res <- suppressWarnings({
@@ -1622,12 +1668,12 @@ logit.step <- function(
         vars.step <- neg_or_after_neg_coef_vars
 
         if (verbose) {
-          cli::cli_alert_info(
-            "Variable {var.sel} eliminada por coeficiente negativo"
-          )
+          log_info(paste(
+            "Variable", var.sel, "eliminada por coeficiente negativo"
+          ))
         }
         if (verbose && length(neg_or_after_neg_coef_vars) > 1) {
-          cli::cli_alert_danger("Se retrocede más de un lugar en FwdK!")
+          log_error("Se retrocede más de un lugar en FwdK!")
         }
 
         if (length(positive_coef_vars) == 0) {
@@ -1665,7 +1711,7 @@ logit.fwd <- function(train, target, verbose = FALSE) {
   train2 <- train
   idx_outer <- 1
 
-  if (verbose) cli::cli_alert_info("Secuencia Fwd {idx_outer}.")
+  if (verbose) log_info(paste("Secuencia Fwd", idx_outer, "."))
 
   vars.excl <- character()
   res.step <- logit.step(train2, target, verbose = verbose)
@@ -1996,7 +2042,7 @@ csv_2_score <- function(ds_path = data_source_delim_path,
     types_spec <- types_spec |> discard_at(par_target)
   }
   if (ds_type == "ODBC") {
-    warning("Funcionalidad no testeada!")
+    log_warn("Funcionalidad no testeada!")
     con <- odbc_connect_w_keyring(df_Param, verbose = FALSE)
   }
   else if (ds_type == "DELIM") {
@@ -2112,11 +2158,11 @@ csv_2_score <- function(ds_path = data_source_delim_path,
                    "i"="Los pesos se tomaron de la variable {par_weight}",
                    ">"=cli::col_red("Cod 331"))
     if (!res$wn)
-      cli::cli_warn(c(
+      log_warn(paste(
         "No todos los pesos son enteros!",
-        "x" = "Se esperan frecuencias en la variable {.var par_weight}.",
-        "i" = "La convergencia de la regresión logística {.emph NO} está garantizada!"),
-        ">"=cli::col_red("Cod 332"))
+        "Se esperan frecuencias en la variable", par_weight, ".",
+        "La convergencia de la regresión logística NO está garantizada!"),
+        code = "332")
   }
 
   # Cols_adic check
@@ -2375,11 +2421,11 @@ tab_niv_default_fct <- function(par_df,
   check_sorted_score_levels(tab_niv |> pull(TM)) -> chk_br
 
   if (chk_br$status == "error")
-    cli::cli_warn(c(
-      "x" = "Los niveles de riesgo por default no verifican:",
+    log_warn(paste(
+      "Los niveles de riesgo por default no verifican:",
       chk_br$msg,
-      "i" = "Crear los niveles manualmente!",
-      ">"=cli::col_red("Cod 210")))
+      "Crear los niveles manualmente!"),
+      code = "210")
 
   tab_niv |>
     filter(level_order == max(level_order)) |>
@@ -2391,10 +2437,9 @@ tab_niv_default_fct <- function(par_df,
   # el peor nivel debe ser orden 1
   # Así se verifica la equivalencia entre cut_lo y orden
   if (!chk_orden1)
-    cli::cli_warn(c(
-      "x" = "Los niveles de riesgo por default no están ordenados!",
-      "i" = "Crear los niveles manualmente!",
-      ">"=cli::col_red("Cod 210")))
+    log_warn(
+      "Los niveles de riesgo por default no están ordenados! Crear los niveles manualmente!",
+      code = "210")
 
   tab_niv |>
     select(level_name, rule, TM_max, level_order, TM_min) -> tab_niv
@@ -2545,13 +2590,15 @@ vif_func <- function(in_frame,thresh=10,trace=T,...){
   vif_max<-max(as.numeric(vif_init[,2]), na.rm = TRUE)
 
   if(vif_max < thresh){
-    if(trace==T){ #print output of each iteration
+    if(trace==T){ #log output of each iteration
       # prmatrix(vif_init,collab=c('var','vif'),rowlab=rep('',nrow(vif_init)),quote=F)
       # Si hay mas de 4 variables es buena la impresión. Tendría que graficar.
-      if (ncol(vif_init)<=4) print(knitr::kable(cbind(vif_init[,1],
-                                                      apply(vif_init[,-1], 2, function(x) round(as.numeric(x),2)))))
-      cat('\n')
-      cat(paste('All variables have VIF < ', thresh,', max VIF ',round(vif_max,2), sep=''),'\n\n')
+      if (ncol(vif_init)<=4) {
+        vif_table <- knitr::kable(cbind(vif_init[,1],
+                                       apply(vif_init[,-1], 2, function(x) round(as.numeric(x),2))))
+        log_debug(paste("VIF table:", paste(vif_table, collapse="\n")))
+      }
+      log_debug(paste('All variables have VIF <', thresh,', max VIF', round(vif_max,2)))
     }
     return(var_names)
   }
@@ -2581,13 +2628,14 @@ vif_func <- function(in_frame,thresh=10,trace=T,...){
 
       if(vif_max<thresh) break
 
-      if(trace==T){ #print output of each iteration
+      if(trace==T){ #log output of each iteration
         # prmatrix(vif_vals,collab=c('var','vif'),rowlab=rep('',nrow(vif_vals)),quote=F)
-        if (ncol(vif_vals)<=4) print(knitr::kable(cbind(vif_vals[,1],
-                                                        apply(vif_vals[,-1], 2, function(x) round(as.numeric(x),2)))))
-        cat('\n')
-        cat('removed: ',vif_vals[max_row,1],vif_max,'\n\n')
-        flush.console()
+        if (ncol(vif_vals)<=4) {
+          vif_table <- knitr::kable(cbind(vif_vals[,1],
+                                         apply(vif_vals[,-1], 2, function(x) round(as.numeric(x),2))))
+          log_debug(paste("VIF values:", paste(vif_table, collapse="\n")))
+        }
+        log_debug(paste('removed:', vif_vals[max_row,1], vif_max))
       }
 
       in_dat<-in_dat[,!names(in_dat) %in% vif_vals[max_row,1]]
