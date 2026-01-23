@@ -17,6 +17,13 @@ suppressMessages({
   library(dplyr) # attach AFTER stats
 })
 
+# Set ggplot2 theme after loading
+ggplot2::theme_set(ggplot2::theme_classic())
+
+# Logging already initialized in .Rprofile.site
+log_info("SmartModel Setup iniciado")
+log_debug("bsm_path: {bsm_path}")
+
 # Set control_file ------------------------------------------------------------
 
 with_home_path("Params/Control de SmartModelStudio.json") -> param_json
@@ -121,5 +128,9 @@ if (string_has_no_data(par_ids)) {.ids <- '.id'}
 
 # To ensure reproducibility
 par_seed <- 101
-#message("Carga exitosa de Parámetros.")
+
+# Log successful parameter load
+log_info("Parámetros cargados exitosamente")
+log_debug(glue::glue("project_title: {project_title}, project_version: {project_version}"))
+log_debug(glue::glue("data_source_type: {data_source_type}, par_split: {par_split}"))
 

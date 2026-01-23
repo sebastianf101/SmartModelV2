@@ -14,6 +14,8 @@ export BSM_NAME="Mi_SM"
 export BSM_PORT="3000"
 export BSM_DASHBOARD_PORT="3001"
 export BSM_SSH_PORT="2222"
-# Progress monitoring directory (mounted to ${BSM_DIR}/Logs inside container)
-export BSM_PROGRESS_DIR="/tmp/sm-progress-${BSM_NAME}"
+# Logs directory (inside container and for env var)
+export BSM_LOG_DIR="${BSM_DIR}/Logs"
+# Logs directory on host (mounted to ${BSM_LOG_DIR} inside container)
+export BSM_LOGS_HOST_DIR="/tmp/sm-logs-${BSM_NAME}"
 

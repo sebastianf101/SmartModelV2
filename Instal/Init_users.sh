@@ -11,10 +11,24 @@ do
    do
       version=$(basename "$dir_start")
       echo "La versión es $version"
-      orig_path="/var/data/besmart/versiones/$version/Ej_Inicial"
+
+      # Copy Ej_Inicial directory
+      orig_ej_path="/var/data/besmart/versiones/$version/Ej_Inicial"
       dest_path="$dir_dest/$version"
-      echo "Copiando $orig_path en $dest_path"
-      /bin/cp -rf "$orig_path" "$dest_path"
+      echo "Copiando $orig_ej_path en $dest_path"
+      /bin/cp -rf "$orig_ej_path" "$dest_path"
+
+      # Copy Librerias directory
+      orig_lib_path="/var/data/besmart/versiones/$version/Librerias"
+      dest_lib_path="$dest_path/Librerias"
+      echo "Copiando $orig_lib_path en $dest_lib_path"
+      /bin/cp -rf "$orig_lib_path" "$dest_lib_path"
+
+      # Create necessary directories for user workspace
+      mkdir -p "$dest_path/Logs"
+      mkdir -p "$dest_path/Trabajo"
+      mkdir -p "$dest_path/Reportes"
+      mkdir -p "$dest_path/Auxil"
    done
    # Create .bashrc for non-login shells (Positron, etc.)
    bashrc_file="/home/${u}/.bashrc"

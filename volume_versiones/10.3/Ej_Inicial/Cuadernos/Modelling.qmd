@@ -60,19 +60,31 @@ En este cuaderno construimos un modelo de score a partir de las variables `r len
 
 ### Coeficientes del modelo
 
-```{r ForwardK}
+```{r SetupForwardK-A}
 # Setup Parallelization
 if (requireNamespace("future", quietly = TRUE)) {
   # Use all cores minus one
   n_cores <- max(1, parallel::detectCores(logical = FALSE) - 1)
   future::plan(future::multisession, workers = n_cores)
-  cli::cli_alert_info("Parallel processing enabled with {n_cores} workers.")
+  log_info("Parallel processing enabled with {n_cores} workers.")
 }
+```
 
-# Enable global progress handlers
-progressr::handlers(global = TRUE)
-progressr::handlers("cli")
+```{r SetupForwardK-B}
+# Setup progress handlers - no console output during rendering
+# Progress is tracked via progress.json file instead
+if (interactive()) {
+  # Only show cli progress in interactive mode
+  progressr::handlers(global = TRUE)
+  progressr::handlers("cli")
+} else {
+  # In batch mode (rendering), use silent handler
+  progressr::handlers("void")
+}
+```
 
+
+```{r ForwardK_Model}
 res.trad <- tryCatch({
   logit.fwd(train, target = "Good", verbose = FALSE)
   },
@@ -81,9 +93,9 @@ res.trad <- tryCatch({
       error_custom("El método ForwardK no convergió. Intentar con valores de par_weight constantes o constantes por cada valor de par_target.",
                ">"=cli::col_red("Cod 202"))
     } else {
-       # Enhanced error reporting
-      error_custom(paste0("El método ForwardK no convergió por causas internas. Detalle: ", e$message),
-               ">"=cli::col_red("Cod 203"))
+       # Enhanced error reporting - use paste to avoid glue interpretation issues
+      error_msg <- paste("El método ForwardK no convergió por causas internas. Detalle:", e$message)
+      error_custom(error_msg, ">"=cli::col_red("Cod 203"))
     }
     return(NULL)
   }
@@ -353,9 +365,7 @@ tibble(Muestra_R=scores_R |> nrow(), Muestra_SQL=df_comp_sql |> nrow(),
 df_comp_sql |> summarise(Max_Dif_SQL_R=max(abs(score_r-score_sql))) -> tab
 
 if (tab$Max_Dif_SQL_R > 1)
-  cli::cli_warn(c(
-    "Hubo un problema en la verificación de Scores!",
-    ">"=cli::col_red("Cod 201")))
+  log_warn("Hubo un problema en la verificación de Scores! (Cod: 201)")
 ```
 
 
@@ -542,5 +552,5 @@ if (!fs::file_exists(f.name)) error_custom(
 
 ```{r End}
 #| output: false
-message(Sys.time(), ": Fin del cuaderno de Modelado")
+log_info("Fin del cuaderno de Modelado")
 ```

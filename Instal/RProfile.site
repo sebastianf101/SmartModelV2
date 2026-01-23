@@ -3,25 +3,18 @@ options(HTTPUserAgent = sprintf("R/%s R (%s)", getRversion(),
                                       R.version$arch, R.version$os)))
 options(repos = c(CRAN = 'https://cran.rstudio.com/'), download.file.method = 'libcurl', Ncpus = 4)
 options(restoreWorkspace = "no",  saveWorkspace = "no")
+
 # Setup Options -------------------------------------------------------------------
 
 # Necesario para reproducibilidad en paralelismo
 set.seed(101, "L'Ecuyer")
 graphics::par(mfrow=c(1,1))
-ggplot2::theme_set(ggplot2::theme_classic())
+# ggplot2 theme will be set when ggplot2 is loaded (see Setup.R)
 # Con options( warn = 1 ) fuerzo la impresión de todos los warnings.
 # Con options( warn = 2 ) convierto los warnings a errores forzando la parada del proceso.
 options( warn = 1 )
 options(dplyr.summarise.inform = FALSE)
 options(tinytex.verbose = TRUE)
-
-# Paquetes
-# 202509, SF: cambié la forma de cargar los paquetes para que sea compatible
-# con sesiones interactivas de Positron.
-# Ahora, desplacé la carga de paquetes como dplyr a Setup.R
-#
-# options(defaultPackages=c(getOption("defaultPackages"),
-#  "magrittr", "dplyr", "purrr", "gt", "ggplot2", "readr"))
 
 # Set error_handling ------------------------------------------------------------
 # SF, 20250124
@@ -44,15 +37,25 @@ fs::path("~/Documents/besmart", version_bsm) -> bsm_path
 bsm_path |> fs::dir_create("Auxil")
 bsm_path |> fs::dir_create("Reportes")
 bsm_path |> fs::dir_create("Trabajo")
+bsm_path |> fs::dir_create("Logs")
 fs::path(bsm_path) |> setwd()
 
 # Init --------------------------------------------------------------------
-sys.source(fs::path(version_path, "Librerias/Utils Tejido.R"), envir = globalenv())
+sys.source(fs::path(bsm_path, "Librerias/Utils Tejido.R"), envir = globalenv())
 
 # Libraries ---------------------------------------------------------------
 
-sys.source(fs::path(version_path, "Librerias/Funciones auxiliares.R"), envir = globalenv(), keep.source = FALSE)
-sys.source(file = fs::path(version_path, "Librerias/Utils Pres and Reports.R"), envir = globalenv(), keep.source = FALSE)
+sys.source(fs::path(bsm_path, "Librerias/Funciones logging.R"), envir = globalenv(), keep.source = TRUE)
+sys.source(fs::path(bsm_path, "Librerias/Funciones auxiliares.R"), envir = globalenv(), keep.source = TRUE)
+sys.source(file = fs::path(bsm_path, "Librerias/Utils Pres and Reports.R"), envir = globalenv(), keep.source = TRUE)
+
+# Initialize Logging System -----------------------------------------------
+# Initialize once at startup with auto-detection of batch mode
+.bsm_session_id <- log_init(
+  is_batch = !interactive(),
+  min_level_console = "INFO",
+  min_level_file = "DEBUG"
+)
 
 # Fin ---------------------------------------------------------------
 inicio_sesion = Sys.time()
