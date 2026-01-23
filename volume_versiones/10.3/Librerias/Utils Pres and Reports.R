@@ -540,14 +540,24 @@ resumen_fwd_gt <- function(logit.fwd.res=res.trad, tab_bins=tab.bins) {
     rename(Variable=term, Beta=estimate) |>
     filter(Variable!="(Intercept)") -> vars_mod
 
-  logit.fwd.res |>
-    pluck("vars.ajustes.fwd") |>
-    group_by(Ajuste, Paso) |>
-    arrange(desc(LRT)) |>
-    mutate(puesto=row_number()) |>
-    filter(puesto |> between(1,3)) |>
-    select(Ajuste, Paso, puesto, LRT, `Pr(>Chi)`, Variable) |>
-    arrange(Ajuste, Paso, puesto) -> tab_trios
+  # Use vars.fwd.all.candidates if available, otherwise vars.ajustes.fwd
+  if ("vars.fwd.all.candidates" %in% names(logit.fwd.res) &&
+      !is.null(logit.fwd.res$vars.fwd.all.candidates) &&
+      nrow(logit.fwd.res$vars.fwd.all.candidates) > 0) {
+    tab_trios <- logit.fwd.res$vars.fwd.all.candidates |>
+      group_by(Ajuste, Paso) |>
+      arrange(desc(LRT)) |>
+      mutate(puesto=row_number()) |>
+      filter(puesto |> between(1,3)) |>
+      select(Ajuste, Paso, puesto, LRT, `Pr(>Chi)`, Variable) |>
+      arrange(Ajuste, Paso, puesto)
+  } else {
+    # Fallback: single winner per step
+    tab_trios <- logit.fwd.res$vars.ajustes.fwd |>
+      mutate(puesto=1) |>
+      select(Ajuste, Paso, puesto, LRT, `Pr(>Chi)`, Variable) |>
+      arrange(Ajuste, Paso, puesto)
+  }
 
   tab_trios |>
     filter(puesto==1) |>
@@ -565,7 +575,7 @@ resumen_fwd_gt <- function(logit.fwd.res=res.trad, tab_bins=tab.bins) {
     rename(Variable=Variable1) |>
     ungroup() -> tab_compet
 
-  tab.bins |>
+  tab_bins |>
     map(~tibble(Variable=.$var_gen, IV=.$iv, Tipo=.$type, Sentido=.$sentido)) |>
     reduce(bind_rows) |>
     inner_join(vars_mod, by="Variable") |>
@@ -584,6 +594,14 @@ resumen_fwd_gt <- function(logit.fwd.res=res.trad, tab_bins=tab.bins) {
     mutate(Orden=row_number()) |>
     arrange(desc(IV)) -> tab_fwd_res
 
+  # Ensure Variable2 and Variable3 columns exist (even if NA)
+  if (!"Variable2" %in% names(tab_fwd_res)) {
+    tab_fwd_res <- tab_fwd_res |> mutate(Variable2 = NA_character_)
+  }
+  if (!"Variable3" %in% names(tab_fwd_res)) {
+    tab_fwd_res <- tab_fwd_res |> mutate(Variable3 = NA_character_)
+  }
+
   tab_2_gt <- function(tab) {
     tab |> ungroup() |> gt(locale = 'es-AR') |>
       fmt_icon(columns = flechas, fill_color = 'black', stroke_color = 'white') |>
@@ -593,7 +611,7 @@ resumen_fwd_gt <- function(logit.fwd.res=res.trad, tab_bins=tab.bins) {
       fmt_number(columns = c(`Pr(>Chi)`), decimals = 5) |>
       tab_header(title = "Resumen Pasos") |>
       cols_label(Orden="Paso",
-                 Beta=gt::html("Coeficiente<br><em>β</em>"),
+                 Beta=gt::html("Coeficiente<br><em>\u03b2</em>"),
                  flechas="Direccion") |>
       tab_style(style = cell_text(align = "center", v_align = "middle"),
                 locations = cells_column_labels()) |>
@@ -602,18 +620,13 @@ resumen_fwd_gt <- function(logit.fwd.res=res.trad, tab_bins=tab.bins) {
 
   }
 
-  if (max(tab_trios$puesto)<3) {
-    tab_fwd_res |>
-      select(Variable, IV, flechas, Beta, Orden, `Pr(>Chi)`, LRT) |>
-      tab_2_gt()
-
-  } else {
-    tab_fwd_res |>
-      select(Variable, IV, flechas, Beta, Orden, `Pr(>Chi)`, LRT, Variable2, Variable3) |>
-      tab_2_gt() |>
-      cols_label(Variable2=gt::html("Variable<br>competidora 1"), Variable3=gt::html("Variable<br>competidora 2"))
-
-  } -> res
+  # Always include competitor columns, even if they're NA
+  res <- tab_fwd_res |>
+    select(Variable, IV, flechas, Beta, Orden, `Pr(>Chi)`, LRT,
+           Variable2, Variable3) |>
+    tab_2_gt() |>
+    cols_label(Variable2=gt::html("Variable<br>competidora 1"),
+               Variable3=gt::html("Variable<br>competidora 2"))
 
   return(res)
 

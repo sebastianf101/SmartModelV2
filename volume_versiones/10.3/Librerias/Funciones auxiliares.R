@@ -1528,6 +1528,7 @@ logit.step <- function(
   coef.steps <- coef.step
   all.coef.positives <- 1
   vars.fwd.res <- tibble()
+  vars.fwd.all <- tibble()  # Track ALL candidates tested
   var.sel <- "init"
   vars.step <- character()
   included_vars <- character()
@@ -1643,6 +1644,13 @@ logit.step <- function(
           Paso = idx
         )
         vars.fwd.res <- bind_rows(vars.fwd.res, winner_stats)
+
+        # Save top 3 candidates for reporting (competitors)
+        vars.fwd.top3 <- vars.fwd |>
+          slice_head(n = 3) |>
+          mutate(Paso = idx)
+        vars.fwd.all <- bind_rows(vars.fwd.all, vars.fwd.top3)
+
         vars.step <- c(vars.step, var.sel)
         fmla <- mod.curr$formula
       } else {
@@ -1701,7 +1709,8 @@ logit.step <- function(
     coef.steps = coef.steps,
     mod.curr = mod.curr,
     fmla = fmla,
-    vars.fwd.res = vars.fwd.res
+    vars.fwd.res = vars.fwd.res,
+    vars.fwd.all = vars.fwd.all  # All candidates tested
   ))
 }
 
@@ -1733,6 +1742,10 @@ logit.fwd <- function(train, target, verbose = FALSE) {
     rename(`Pr(>Chi)` = pval) |>
     mutate(Ajuste = idx_outer)
 
+  vars.fwd.all.candidates <- res.step$vars.fwd.all |>
+    rename(`Pr(>Chi)` = pval) |>
+    mutate(Ajuste = idx_outer)
+
   coef.steps <- res.step$coef.steps |> mutate(Ajuste = idx_outer)
 
   while (res.step$all.coef.positives < 0 &&
@@ -1758,6 +1771,13 @@ logit.fwd <- function(train, target, verbose = FALSE) {
         res.step$vars.fwd.res |> rename(`Pr(>Chi)` = pval) |> mutate(Ajuste = idx_outer)
       )
     }
+
+    if (!is.null(res.step$vars.fwd.all) && nrow(res.step$vars.fwd.all) > 0) {
+      vars.fwd.all.candidates <- bind_rows(
+        vars.fwd.all.candidates,
+        res.step$vars.fwd.all |> rename(`Pr(>Chi)` = pval) |> mutate(Ajuste = idx_outer)
+      )
+    }
   }
 
   # Final progress
@@ -1767,6 +1787,7 @@ logit.fwd <- function(train, target, verbose = FALSE) {
   return(list(
     vars.excl = vars.excl,
     vars.ajustes.fwd = vars.ajustes.fwd,
+    vars.fwd.all.candidates = vars.fwd.all.candidates,
     coef.steps = coef.steps,
     det = res.step
   ))
