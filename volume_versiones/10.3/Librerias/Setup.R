@@ -1,3 +1,5 @@
+# Ensure non-interactive sessions default to PNG device (prevents Rplots.pdf)
+if (!interactive()) options(device = function(...) grDevices::png(...))
 
 # Libraries
 # # Paquetes
@@ -19,6 +21,9 @@ suppressMessages({
 
 # Set ggplot2 theme after loading
 ggplot2::theme_set(ggplot2::theme_classic())
+
+# Prefer a raster device for knitted chunks (better for HTML)
+if (requireNamespace("knitr", quietly = TRUE)) knitr::opts_chunk$set(dev = "ragg_png")
 
 # Logging already initialized in .Rprofile.site
 log_info("SmartModel Setup iniciado")
