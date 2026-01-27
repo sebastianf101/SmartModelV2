@@ -1468,23 +1468,45 @@ logit.step <- function(
     return(NULL)
   }
 
-  # Check if weights are uniform (enables Rfast2 optimization)
-  weights_uniform <- length(unique(train$.weight)) == 1
-
-  # Determine if Rfast2 optimization should be used
+  # ============================================================================
+  # RFAST2 CONFIGURATION - Centralized decision logic for optimization path
+  # ============================================================================
   # CRITICAL: In interactive mode, ALWAYS use add1() because:
   #   - Rfast2 with parallel=TRUE crashes in IDE
   #   - Rfast2 with parallel=FALSE is SLOWER than add1() (22s vs 11-14s)
   # Only in batch mode (Rscript) do we get the 2.9x speedup from Rfast2+parallel
-  use_rfast2_default <- if (interactive()) "FALSE" else "TRUE"
+
+  # Check if weights are uniform (required for Rfast2 optimization)
+  weights_uniform <- length(unique(train$.weight)) == 1
+
+  # Determine USE_RFAST2: default to TRUE if not set or empty
+  use_rfast2_env <- Sys.getenv("USE_RFAST2", "")
+  use_rfast2_env <- if (use_rfast2_env == "") "TRUE" else use_rfast2_env
+
+  # Determine RFAST2_PARALLEL: default to TRUE if not set or empty
+  use_parallel_env <- Sys.getenv("RFAST2_PARALLEL", "")
+  use_parallel_env <- if (use_parallel_env == "") "TRUE" else use_parallel_env
+
+  # Final decision: Enable Rfast2 only in non-interactive mode with uniform weights
   use_rfast2 <- weights_uniform &&
-    Sys.getenv("USE_RFAST2", use_rfast2_default) == "TRUE" &&
+    use_rfast2_env == "TRUE" &&
     !interactive()  # Force disable in interactive regardless of env var
 
-  log_debug(paste(
-    "Value of USE_RFAST2:", Sys.getenv('USE_RFAST2', 'not set'),
-    "| Weights uniform:", weights_uniform, "| Using Rfast2:", use_rfast2
+  # Final decision: Enable parallel only in non-interactive mode
+  use_parallel <- use_rfast2 &&  # Only meaningful if Rfast2 is enabled
+    !interactive() &&
+    use_parallel_env == "TRUE"
+
+  # Always log decisions for debugging
+  log_info(paste(
+    "interactive()=", interactive(),
+    "| weights_uniform=", weights_uniform,
+    "| USE_RFAST2=", use_rfast2_env,
+    "| RFAST2_PARALLEL=", use_parallel_env,
+    "| use_rfast2=", use_rfast2,
+    "| use_parallel=", use_parallel
   ))
+  # ============================================================================
 
   if (use_rfast2) {
     # Load Rfast2 only if needed
@@ -1565,12 +1587,7 @@ logit.step <- function(
       xout <- X_all[, candidate_vars, drop = FALSE]
       devi_0 <- mod.step$deviance
 
-      # CRITICAL: parallel=TRUE causes crashes in IDE/interactive R sessions
-      # Only enable in true batch mode (Rscript)
-      use_parallel <- !interactive() &&
-        Sys.getenv("RFAST2_PARALLEL", "TRUE") == "TRUE"
-
-      if (verbose) log_info(paste("Using Rfast2 parallel =", use_parallel))
+      # use_parallel was already determined in the centralized config section above
 
       # Suppress RcppArmadillo singular matrix warnings (non-fatal, numerical precision)
       add_res <- suppressWarnings({
