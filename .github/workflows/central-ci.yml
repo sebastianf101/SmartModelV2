@@ -1,0 +1,211 @@
+name: Central CI/CD (Build + Integration + Deploy)
+
+on:
+  repository_dispatch:
+    types: [from-repo-ci]
+  workflow_dispatch:
+    inputs:
+      source_repo:
+        description: Repo que dispara (owner/name)
+        required: false
+        type: string
+      source_branch:
+        description: Branch a usar si no hay SHA
+        required: false
+        type: string
+      source_sha:
+        description: SHA del commit
+        required: false
+        type: string
+      version:
+        description: Version/tag para las imagenes
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  # Repos "fuente" (ajustar)
+  REPO_A: fedev23/SamrtModelingAppBack
+  REPO_B: sferro-besmart/SmartModelV2
+
+  # Branch "prod"/default de cada repo (ajustar)
+  REPO_A_DEFAULT_REF: main
+  REPO_B_DEFAULT_REF: SMapp
+
+  # ACR
+  ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    outputs:
+      app_image: ${{ steps.meta.outputs.app_image }}
+      smv2_image: ${{ steps.meta.outputs.smv2_image }}
+
+    steps:
+      - name: Parse dispatch payload
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          SOURCE_REPO="${{ github.event.client_payload.source_repo || github.event.inputs.source_repo || '' }}"
+          SOURCE_BRANCH="${{ github.event.client_payload.branch || github.event.inputs.source_branch || '' }}"
+          SOURCE_SHA="${{ github.event.client_payload.sha || github.event.inputs.source_sha || '' }}"
+          SOURCE_VERSION="${{ github.event.client_payload.version || github.event.inputs.version || '' }}"
+
+          if [ -n "${SOURCE_REPO}" ] && \
+             [ "${SOURCE_REPO}" != "${{ env.REPO_A }}" ] && \
+             [ "${SOURCE_REPO}" != "${{ env.REPO_B }}" ]; then
+            echo "Unknown source_repo: ${SOURCE_REPO}"
+            exit 1
+          fi
+
+          if [ -z "${SOURCE_REPO}" ]; then
+            SOURCE_REPO="${{ env.REPO_A }}"
+          fi
+
+          # Reglas:
+          # - si el evento viene de Repo A: A@SHA (o branch) y B@default
+          # - si viene de Repo B: B@SHA (o branch) y A@default
+          REF_A="${{ env.REPO_A_DEFAULT_REF }}"
+          REF_B="${{ env.REPO_B_DEFAULT_REF }}"
+
+          if [ "${SOURCE_REPO}" = "${{ env.REPO_A }}" ]; then
+            if [ -n "${SOURCE_SHA}" ]; then
+              REF_A="${SOURCE_SHA}"
+            elif [ -n "${SOURCE_BRANCH}" ]; then
+              REF_A="${SOURCE_BRANCH}"
+            fi
+          fi
+
+          if [ "${SOURCE_REPO}" = "${{ env.REPO_B }}" ]; then
+            if [ -n "${SOURCE_SHA}" ]; then
+              REF_B="${SOURCE_SHA}"
+            elif [ -n "${SOURCE_BRANCH}" ]; then
+              REF_B="${SOURCE_BRANCH}"
+            fi
+          fi
+
+          # Tag: preferimos version, si no, short SHA
+          TAG="${SOURCE_VERSION}"
+          if [ -z "${TAG}" ]; then
+            if [ -n "${SOURCE_SHA}" ]; then
+              TAG="$(echo "${SOURCE_SHA}" | cut -c1-7)"
+            else
+              TAG="${GITHUB_SHA:0:7}"
+            fi
+          fi
+
+          APP_IMAGE="${{ env.ACR_LOGIN_SERVER }}/app:${TAG}"
+          SMV2_IMAGE="${{ env.ACR_LOGIN_SERVER }}/smv2:${TAG}"
+
+          echo "source_repo=${SOURCE_REPO}" >> "$GITHUB_OUTPUT"
+          echo "source_branch=${SOURCE_BRANCH}" >> "$GITHUB_OUTPUT"
+          echo "source_sha=${SOURCE_SHA}" >> "$GITHUB_OUTPUT"
+          echo "version=${SOURCE_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "ref_a=${REF_A}" >> "$GITHUB_OUTPUT"
+          echo "ref_b=${REF_B}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "app_image=${APP_IMAGE}" >> "$GITHUB_OUTPUT"
+          echo "smv2_image=${SMV2_IMAGE}" >> "$GITHUB_OUTPUT"
+
+          echo "Using A ref: ${REF_A}"
+          echo "Using B ref: ${REF_B}"
+          echo "Tag: ${TAG}"
+          echo "App image: ${APP_IMAGE}"
+          echo "SMV2 image: ${SMV2_IMAGE}"
+
+      - name: Checkout Repo A
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.REPO_A }}
+          ref: ${{ steps.meta.outputs.ref_a }}
+          token: ${{ secrets.PIPELINE_REPO_TOKEN }}
+          path: repoA
+          fetch-depth: 0
+
+      - name: Checkout Repo B
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.REPO_B }}
+          ref: ${{ steps.meta.outputs.ref_b }}
+          token: ${{ secrets.PIPELINE_REPO_TOKEN }}
+          path: repoB
+          fetch-depth: 0
+
+      - name: Login to ACR
+        uses: azure/docker-login@v2
+        with:
+          login-server: ${{ secrets.ACR_LOGIN_SERVER }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      # Ajustar context/dockerfile segun Repo A
+      - name: Build & Push App image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./repoA
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.app_image }}
+
+      # Ajustar context/dockerfile segun Repo B
+      - name: Build & Push SMV2 image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./repoB
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.smv2_image }}
+
+  integration:
+    runs-on: ubuntu-latest
+    needs: build-and-push
+
+    steps:
+      - name: Login to ACR
+        uses: azure/docker-login@v2
+        with:
+          login-server: ${{ secrets.ACR_LOGIN_SERVER }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Pull images
+        run: |
+          set -euo pipefail
+          docker pull "${{ needs.build-and-push.outputs.app_image }}"
+          docker pull "${{ needs.build-and-push.outputs.smv2_image }}"
+
+      # Integracion real: docker compose + tests E2E
+      - name: Smoke test (placeholder)
+        run: |
+          set -euo pipefail
+          echo "TODO: levantar app + smv2 y correr E2E"
+          echo "App:  ${{ needs.build-and-push.outputs.app_image }}"
+          echo "SMV2: ${{ needs.build-and-push.outputs.smv2_image }}"
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: integration
+    if: ${{ needs.integration.result == 'success' }}
+    environment: production
+
+    steps:
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+
+      # Cambiar por tu target real: Container Apps / WebApp / AKS, etc.
+      - name: Deploy (placeholder)
+        run: |
+          set -euo pipefail
+          echo "Deploying:"
+          echo "  App:  ${{ needs.build-and-push.outputs.app_image }}"
+          echo "  SMV2: ${{ needs.build-and-push.outputs.smv2_image }}"
+          echo "TODO: az ... update con estos tags"
