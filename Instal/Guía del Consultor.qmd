@@ -357,9 +357,12 @@ Columnas:
 
 ### Estabilidad de variables {#sec-estab-var}
 
-En esta sección evaluaremos la estabilidad de las variables entre los grupos 'Orig' y 'Val' por dos métodos.
+En esta sección evaluaremos la estabilidad de las variables por dos métodos.
 
-En el primer método evaluamos la estabilidad de la distribuciones de las variables comparando los bines -distribución empírica- de la variable en la muestra de Desarrollo `Orig` y los bines en la nueva Muestra. Llamamos a los bines obtenidos en la muestra de Desarrollo la distribución de referencia.
+En el primer método evaluamos la estabilidad de la distribución de la variable comparando los bines -distribución empírica- en la muestra de Entrenamiento y los bines en la nueva Muestra. Llamamos a los bines obtenidos en la muestra de Entrenamiento la distribución de referencia. 
+
+En algunos reportes comparamos la distribución de referencia con la distribución en la muestra de Desarrollo completa, que llamamos 'Orig'. Esto nos permite identificar que medidas son *no significativas*. 
+Si las medidas de la 'Nueva' muestra son muy superiores a las de 'Orig' es probable que la variable no sea estable. 
 
 Usamos dos medidas: la clásica medida PSI, -Population Stability Index- [Ref PSI](https://en.wikipedia.org/wiki/Kullback%E2%80%93Leibler_divergence#Symmetrised_divergence) y la norma L-infinito, que es la usada en Tensorflow: [Ref TF](https://www.tensorflow.org/tfx/guide/tfdv#drift_detection).
 
@@ -595,6 +598,9 @@ Se indica en el reporte si en algún nivel, la tasa de malos obtenida en la vali
 | 201 | Modelado | Max_Dif |Los scores calculados por la sentencia SQL generada no coinciden con los scores obtenidos del modelo. Posible problema en conversión de tipos ó valores nulos.
 | 202 | Modelado | weight_error | El método ForwardK no convergió. Intentar con valores de par_weight constantes o constantes por cada valor de par_target. |
 | 203 | Modelado | weight_error | El método ForwardK no convergió por causas internas. Reportar el caso. |
+| 204 | Modelado | step_error | FwdK no pudo seleccionar variables! Reportar el caso. |
+| 210 | Modelado | CargaRangos | Los niveles de riesgo por default no están ordenados. Editar los cortes manualmente. |
+| 211 | Modelado | tabbins | No se generó ninguna variable candidata! Relajar restricciones? |
 | 305 | Init | Setup | Las listas cols_no_predictoras y cols_forzadas_a_cat deben disjuntas. Revisar esos parámetros. |
 | 306 | Init | Setup | Las listas cols_no_predictoras y cols_forzadas_a_predictoras deben disjuntas. Revisar esos parámetros. |
 | 307 | Init | Setup | Parámetros faltantes. Revisar archivo de Control de Parámetros. |

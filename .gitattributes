@@ -1,0 +1,28 @@
+# Enforce Unix (LF) line endings for script files and s6 service files
+# Shell and bash scripts
+*.sh    text eol=lf
+*.bash  text eol=lf
+
+# R scripts
+*.R     text eol=lf
+*.rmd   text eol=lf
+
+# Files under services.d are executable service scripts (execline/bash). Keep LF.
+Instal/services.d/**    text eol=lf
+
+# Common script-like filenames
+*.run   text eol=lf
+*.execlineb text eol=lf
+
+# Keep binary files unchanged
+*.png binary
+*.jpg binary
+*.gif binary
+*.pdf binary
+*.ttf binary
+*.xlsx binary
+*.zip binary
+
+# Prevent accidental conversion for lockfiles
+package-lock.json -text
+pnpm-lock.yaml -text

@@ -1,0 +1,26 @@
+{
+  // Enforce LF line endings for this workspace (helps Windows users keep scripts Unix-compatible)
+  "files.eol": "\n",
+  // Trim trailing whitespace and ensure files end with a newline
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+  // Optional: show whitespace and render control characters
+  "editor.renderWhitespace": "all",
+  "editor.renderControlCharacters": true,
+  "terminal.integrated.shellIntegration.enabled": true,
+  "terminal.integrated.defaultProfile.windows": "WSL",
+  "terminal.integrated.profiles.windows": {
+    "WSL": {
+      "path": "C:\\Windows\\System32\\wsl.exe",
+      "args": [
+        "-e",
+        "bash",
+        "-lic",
+        "cd \"$(wslpath -u '${workspaceFolder}')\" && exec bash -li"
+      ]
+    }
+  },
+  // Avoid hard-coding `/mnt/c` vs `/c` mount points; profile args handle `cd` via `wslpath`.
+  // Leave `terminal.integrated.cwd` unset so terminals still open even if mount points differ.
+
+}

@@ -1,0 +1,32 @@
+#!/usr/bin/with-contenv bash
+set -eu
+
+BSM_USER="${BSM_USER:-rstudio}"
+BSM_GROUP="$(id -gn "$BSM_USER" 2>/dev/null || echo "$BSM_USER")"
+BSM_VERSION="${BSM_VERSION:-}"
+
+DEFAULT_LOG_DIR="/var/log/explorador_ivs_api"
+if [ -n "${BSM_DIR:-}" ]; then
+  DEFAULT_LOG_DIR="${BSM_DIR}/Logs/explorador_ivs_api"
+elif [ -n "$BSM_VERSION" ]; then
+  DEFAULT_LOG_DIR="/home/${BSM_USER}/Documents/besmart/${BSM_VERSION}/Logs/explorador_ivs_api"
+fi
+
+LOG_DIR="${API_LOG_DIR:-$DEFAULT_LOG_DIR}"
+MAX_FILES="${API_LOG_MAX_FILES:-10}"
+MAX_SIZE="${API_LOG_MAX_SIZE:-5242880}"
+
+mkdir -p "$LOG_DIR"
+# Ensure the Logs directory and all its contents are owned by BSM_USER
+# Find the Logs root directory (e.g., ${BSM_DIR}/Logs)
+LOGS_ROOT="${BSM_DIR}/Logs"
+if [ -d "$LOGS_ROOT" ]; then
+  chown -R "$BSM_USER":"$BSM_GROUP" "$LOGS_ROOT"
+fi
+
+echo "[api/log] starting Explorador IVs API logging"
+echo "[api/log] LOG_DIR=${LOG_DIR}"
+echo "[api/log] MAX_FILES=${MAX_FILES}"
+
+# Rotate when the active log reaches MAX_SIZE bytes, keep MAX_FILES archives, compress with gzip, and timestamp rotations.
+exec s6-log n"${MAX_FILES}" s"${MAX_SIZE}" T "!gzip" "$LOG_DIR"

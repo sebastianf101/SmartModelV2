@@ -13,6 +13,36 @@
         "type": "list"
     },
     {
+        "parameter": "project_version",
+        "value": "Versión 1",
+        "Descripción": "Versión del proyecto",
+        "type": "string"
+    },
+    {
+        "parameter": "score_levels_version",
+        "value": "Cortes A",
+        "Descripción": "Versión de Niveles y Segmentaciones",
+        "type": "string"
+    },
+    {
+        "parameter": "train_dataset_name",
+        "value": "Dataset_Entrenamiento.txt",
+        "Descripción": "Nombre de la muestra de desarrollo dentro del proyecto",
+        "type": "string"
+    },
+    {
+        "parameter": "scoring_dataset_name",
+        "value": "Dataset_Scoring.txt",
+        "Descripción": "Nombre de la muestra de scoring dentro del proyecto",
+        "type": "string"
+    },
+    {
+        "parameter": "validation_oos_dataset_name",
+        "value": "Dataset_Valid_OoS.txt",
+        "Descripción": "Nombre de la muestra de validación full dentro del proyecto",
+        "type": "string"
+    },
+    {
         "parameter": "par_quick",
         "value": "1",
         "Descripción": "Cuadernos rápidos?",
@@ -98,13 +128,13 @@
     },
     {
         "parameter": "par_var_grupo",
-        "value": "SCORECARD_BCRA",
+        "value": "",
         "Descripción": "Variable que define grupos para evaluar las candidatas en cada uno",
         "type": "string"
     },
     {
         "parameter": "cols_forzadas_a_cat",
-        "value": "Flag_Atraso_3M, Flag_Atraso_6M, Flag_AtrasoT1_3M, Flag_AtrasoT1_6M, Flag_AtrasoT2_3M, Flag_AtrasoT2_6M, Flag_AtrasoT3_3M, Flag_AtrasoT3_6M, Flag_AtrasoT4_3M, Flag_AtrasoT4_6M",
+        "value": "",
         "Descripción": "Variables candidatas numéricas forzadas a categóricas",
         "type": "list"
     },
@@ -133,7 +163,7 @@
     },
     {
         "parameter": "cols_nulos_adic",
-        "value": "Cant_Atraso_3M=0, Cant_Atraso_6M=0, Cant_AtrasoT1_3M=0, Cant_AtrasoT1_6M=0, Cant_AtrasoT2_3M=0, Cant_AtrasoT2_6M=0, Cant_AtrasoT3_3M=0, Cant_AtrasoT3_6M=0, Cant_AtrasoT4_3M=0, Cant_AtrasoT4_6M=0",
+        "value": "",
         "Descripción": "Lista de variables y códigos de nulos",
         "type": "list"
     },
@@ -223,7 +253,7 @@
     },
     {
         "parameter": "par_vars_segmento",
-        "value": "SCORECARD_BCRA",
+        "value": "",
         "Descripción": "Variables necesarias para reportes por Segmento",
         "type": "string"
     },

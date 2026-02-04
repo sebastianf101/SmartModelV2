@@ -1,0 +1,10 @@
+ARG BASE_IMAGE_REPO=bsm-studio
+ARG BASE_IMAGE_VERSION=latest
+ARG REPO_SOURCE_URL
+
+# Use the supplied base image name and version
+# ghcr.io/sferro-besmart/my-rstudio:1.0.1
+FROM bsm-studio:latest AS base
+
+COPY ./volume_versiones/ /var/data/besmart/versiones
+
