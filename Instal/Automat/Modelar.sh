@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 
-# Uso set +e para tener reintentos. 
+# Uso set +e para tener reintentos.
 # Uso set +e: Disable the -e option, allowing the script to continue even if a command fails.
 set +e
 
-# Help 
+# Help
 print_help() {
     echo "Obtiene Modelo"
     echo "Dado Parámetros y Muestra de Desarrollo"
     echo "Uso: $0 --input-dir <dir-entrada> [--output-dir <dir-salida>] [--help]"
-    echo "  - En dir-entrada se esperan los archivos" 
+    echo "  - En dir-entrada se esperan los archivos"
     echo "    'Control de SmartModelStudio.xlsx' (ó json) y Muestra_Desarrollo.txt"
-    echo "  - En dir-salida se dejan los logs de salida y errores, Modelo.zip, Reportes y Dataframe con scores."    
+    echo "  - En dir-salida se dejan los logs de salida y errores, Modelo.zip, Reportes y Dataframe con scores."
     echo "  - Si hubo errores este script retorna > 0."
     echo ""
     echo "Proceso normal"
@@ -49,7 +49,7 @@ while [[ $# -gt 0 ]]; do
 		--h)
             print_help
             exit 1
-            ;;    				
+            ;;
         *)
             echo "Invalid option: $1"
             print_help
@@ -102,46 +102,46 @@ fi
 echo "Using input directory: $INPUT_DIR"
 echo "Using output directory: $OUTPUT_DIR"
 
-## Cambio el directorio the trabajo a la dirección de este script. 
-# Los paths se convierten en relativos al script. 
+## Cambio el directorio the trabajo a la dirección de este script.
+# Los paths se convierten en relativos al script.
 cd $(dirname "$0")
 
 ####### Params y Vars ---------------------------------------
 
-# Parece que a veces fallan los cuadernos porque no consigue alocar suficientes recursos. 
+# Parece que a veces fallan los cuadernos porque no consigue alocar suficientes recursos.
 # En ese caso editar las variables *_MIN en envvars_defaults.sh.
 source ./envvars_defaults.sh
 source ./envvars_sesion.sh
 
 ####### Levantar Contenedor Efímero  ------------------------------------
 
-# Encapsulo toda la lógica de comandos docker para permitir tres reintentos. 
+# Encapsulo toda la lógica de comandos docker para permitir tres reintentos.
 pipeline_modelar() {
     # Variables de entorno aleatorias
     # BSM_NAME y BSM_PORT
     source ./envvars_efimeras.sh
 
     source ./compose_up.sh
-    if [ $? -ne 0 ]; then return 1; fi      
-    
+    if [ $? -ne 0 ]; then return 1; fi
+
     echo
     echo "Copiando datos de entrada en el contenedor"
     docker cp "$INPUT_DIR/Control de SmartModelStudio.$PARAM_FILE_EXT" \
-      "$BSM_CONTAINER_SERVICE:$BSM_DIR/Params" 
-    exit_status_1=$?  
+      "$BSM_CONTAINER_SERVICE:$BSM_DIR/Params"
+    exit_status_1=$?
     docker cp "$INPUT_DIR/Muestra_Desarrollo.txt" \
       "$BSM_CONTAINER_SERVICE:$BSM_DIR/Datos"
-    exit_status_2=$?  
+    exit_status_2=$?
     docker exec --user root --workdir $BSM_DIR \
       "$BSM_CONTAINER_SERVICE" chown "$BSM_USER" \
       "$BSM_DIR/Params/Control de SmartModelStudio.$PARAM_FILE_EXT" \
       "$BSM_DIR/Datos/Muestra_Desarrollo.txt"
-    exit_status_3=$?        
-    if [ $exit_status_1 -ne 0 ] || [ $exit_status_2 -ne 0 ] || [ $exit_status_3 -ne 0 ]; then 
+    exit_status_3=$?
+    if [ $exit_status_1 -ne 0 ] || [ $exit_status_2 -ne 0 ] || [ $exit_status_3 -ne 0 ]; then
       echo "Error: Fallo en copia de datos de entrada!"
-      return 1; 
+      return 1;
     fi
-    
+
     echo
     echo "Inicio Cuaderno de Limpieza y Transformación"
     docker exec --user $BSM_USER --workdir $BSM_DIR \
@@ -150,34 +150,38 @@ pipeline_modelar() {
     exit_status_1=$?
     docker cp $BSM_CONTAINER_SERVICE:$BSM_DIR/Trabajo/results_clean_transf.log "$OUTPUT_DIR"/
     exit_status_2=$?
-    if [ $exit_status_1 -ne 0 ] || [ $exit_status_2 -ne 0 ]; then 
+    if [ $exit_status_1 -ne 0 ] || [ $exit_status_2 -ne 0 ]; then
       echo "Error: Cuaderno Clean-Transf.qmd falló."
-      return 1; 
+      return 1;
     fi
     echo "Fin Cuaderno de Limpieza y Transformación"
 
     echo "Inicio Cuaderno de Modelado"
     docker exec --user $BSM_USER --workdir $BSM_DIR \
-      $BSM_CONTAINER_SERVICE quarto render "Cuadernos/Modelling.qmd" --log "$BSM_DIR/Trabajo/results_modelling.log" #--log-format json-stream    
+      $BSM_CONTAINER_SERVICE quarto render "Cuadernos/Modelling.qmd" --log "$BSM_DIR/Trabajo/results_modelling.log" #--log-format json-stream
     exit_status_1=$?
     docker cp $BSM_CONTAINER_SERVICE:$BSM_DIR/Trabajo/results_modelling.log "$OUTPUT_DIR"/
     exit_status_2=$?
-    if [ $exit_status_1 -ne 0 ] || [ $exit_status_2 -ne 0 ]; then 
+    if [ $exit_status_1 -ne 0 ] || [ $exit_status_2 -ne 0 ]; then
       echo "Error: Cuaderno Modelling.qmd falló."
-      return 1; 
+      return 1;
     fi
     echo "Fin Cuaderno de Modelado"
 
     echo "Inicio de copia de resultados en $OUTPUT_DIR"
     docker cp $BSM_CONTAINER_SERVICE:$BSM_DIR/Reportes "$OUTPUT_DIR"/
-    exit_status_1=$?    
+    exit_status_1=$?
     docker cp $BSM_CONTAINER_SERVICE:$BSM_DIR/Trabajo/Modelo.zip "$OUTPUT_DIR"/
     exit_status_2=$?
-    docker exec --user $BSM_USER --workdir $BSM_DIR $BSM_CONTAINER_SERVICE Rscript -e "print('Chau R')"
+    docker cp $BSM_CONTAINER_SERVICE:$BSM_DIR/Trabajo/sent.sql "$OUTPUT_DIR"/
     exit_status_3=$?
-    if [ $exit_status_1 -ne 0 ] || [ $exit_status_2 -ne 0 ] || [ $exit_status_3 -ne 0 ]; then 
+    docker cp $BSM_CONTAINER_SERVICE:$BSM_DIR/Trabajo/df_con_scores.csv "$OUTPUT_DIR"/
+    exit_status_4=$?
+    docker exec --user $BSM_USER --workdir $BSM_DIR $BSM_CONTAINER_SERVICE Rscript -e "print('Chau R')"
+    exit_status_5=$?
+    if [ $exit_status_1 -ne 0 ] || [ $exit_status_2 -ne 0 ] || [ $exit_status_3 -ne 0 ] || [ $exit_status_4 -ne 0 ] || [ $exit_status_5 -ne 0 ]; then
       echo "Error: Fallo en copia de resultados!"
-      return 1; 
+      return 1;
     fi
     echo "Fin de copia de resultados en $OUTPUT_DIR"
     return 0

@@ -1,0 +1,27 @@
+#!/usr/bin/with-contenv bash
+set -eu
+
+BSM_USER="${BSM_USER:?BSM_USER is required}"
+BSM_VERSION="${BSM_VERSION:?BSM_VERSION is required}"
+BSM_DIR="${BSM_DIR:-/home/${BSM_USER}/Documents/besmart/${BSM_VERSION}}"
+
+if [ ! -d "$BSM_DIR" ]; then
+	echo "[api] ERROR: BSM_DIR '$BSM_DIR' does not exist." >&2
+	exit 1
+fi
+
+echo "[api] BSM_USER=${BSM_USER}"
+echo "[api] USER=${USER:-}"
+echo "[api] BSM_VERSION=${BSM_VERSION}"
+echo "[api] BSM_DIR=${BSM_DIR}"
+
+export HOME="/home/${BSM_USER}"
+export USER="${BSM_USER}"
+echo "[api] HOME=${HOME}"
+
+cd "$BSM_DIR"
+echo "[api] pwd=$(pwd)"
+
+echo "[api] starting Explorador IVs API"
+
+exec s6-setuidgid "$BSM_USER" R --slave --no-save --no-restore -f Tableros/Explorador_IVs_API_run.R 2>&1

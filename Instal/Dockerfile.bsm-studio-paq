@@ -1,10 +1,23 @@
-#Actualizado al 202503
+# Actualizado al 202509
 # la imagen rocker/ml fue deprecada!
-FROM rocker/tidyverse:4.4.3
+# Ojo que uso latest! Testear antes de producción!
+FROM rocker/tidyverse:latest
 # Agregué libxt6 de acuerdoa a:
 # https://notes.rmhogervorst.nl/post/2020/09/23/solving-libxt-so-6-cannot-open-shared-object-in-grdevices-grsoftversion/
-RUN apt-get update && apt-get install -y  libxt6 git-core libcurl4-openssl-dev libgit2-dev libicu-dev libsecret-1-dev libsodium-dev libssl-dev libxml2-dev lsof make pandoc unixodbc-dev xclip zlib1g-dev && rm -rf /var/lib/apt/lists/*
-RUN echo "options(repos = c(CRAN = 'https://cran.rstudio.com/'), download.file.method = 'libcurl', Ncpus = 4)" >> /usr/local/lib/R/etc/Rprofile.site
+RUN apt-get update && apt-get install -y  libxt6 git-core libcurl4-openssl-dev libgit2-dev \
+    libicu-dev libsecret-1-dev \
+    libsodium-dev libssl-dev libxml2-dev lsof make pandoc unixodbc-dev xclip zlib1g-dev \
+    libtbb-dev libglpk-dev libharfbuzz-dev libfribidi-dev \
+    openssh-server sudo curl tar locales iproute2 xz-utils \
+    && rm -rf /var/lib/apt/lists/*
+# locales para Argentina
+RUN sed -i '/es_AR.UTF-8/s/^# //g' /etc/locale.gen && \
+    locale-gen es_AR.UTF-8
+ENV LANG=es_AR.UTF-8
+ENV LC_ALL=es_AR.UTF-8
+
+#RUN echo "options(repos = c(CRAN = 'https://cran.rstudio.com/'), download.file.method = 'libcurl', Ncpus = 4)" >> /usr/local/lib/R/etc/Rprofile.site
+RUN echo "options(repos = c(CRAN = 'https://packagemanager.posit.co/cran/__linux__/noble/latest'), download.file.method = 'libcurl', Ncpus = 4)" >> /usr/local/lib/R/etc/Rprofile.site
 RUN install2.r --error --skipinstalled --ncpus -1 \
 assertthat \
 attempt \
@@ -54,23 +67,26 @@ tidyr \
 tidymodels \
 vctrs \
 vroom \
-yardstick \ 
+yardstick \
 # plotly y ggiraph added in 10.1.5 version
-ggiraph \ 
-# To plot coefficients. 
+ggiraph \
+# To plot coefficients.
 # from gtsummary. https://www.danieldsjoberg.com/gtsummary/reference/plot.html
 GGally \
 ggstance \
 # https://jtools.jacob-long.com/
 jtools \
-broom.mixed \ 
+broom.mixed \
 broom.helpers \
 # for Spearman weighted correlation
-wCorr \ 
-monotone \ 
+wCorr \
+monotone \
 quarto \
 DiagrammeR \
 # for rendering HTML equations
 katex \
-# Already included in former dependencies.  Just in case. 
+# Already included in former dependencies.  Just in case.
 diffobj \
+# for parallel stepwise logistic regression (add.term)
+Rfast2
+

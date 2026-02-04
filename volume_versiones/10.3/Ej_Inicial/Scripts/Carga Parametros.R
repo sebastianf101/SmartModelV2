@@ -1,4 +1,6 @@
 # Lectura de parámetros
-# Asume que esta cargado version_path
+# Requiere que .Rprofile.site haya inicializado el entorno (bsm_path, logging, etc.)
+# Ensure non-interactive sessions default to PNG device to avoid Rplots.pdf
+if (!interactive()) options(device = function(...) grDevices::png(...))
 clean_knit_cache()
-sys.source(fs::path(version_path, "Librerias/Setup.R"), envir = globalenv(), keep.source = FALSE)
+sys.source(fs::path(bsm_path, "Librerias/Setup.R"), envir = globalenv(), keep.source = TRUE)

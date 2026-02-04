@@ -1,0 +1,29 @@
+name: sm-cont-${BSM_NAME}
+
+services:
+  studio:
+    image: ${BSM_IMAGE}
+    ports:
+       - ${BSM_PORT}:8787
+       - ${BSM_DASHBOARD_PORT}:3838
+    working_dir: ${BSM_DIR}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8787 > /dev/null || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    environment:
+      BSM_VERSION: ${BSM_VERSION}
+      BSM_USER: ${BSM_USER}
+      BSM_DIR: ${BSM_DIR}
+      PASSWORD: ${BSM_PWD}
+      LANG: "es_AR.UTF-8"
+      TZ: "America/Argentina/Buenos_Aires"
+      LC_ALL: "es_AR.UTF-8"
+    deploy:
+      resources:
+        reservations:
+          cpus: ${BSM_CPU_CORES_MIN}
+          memory: ${BSM_MEMORY_MIN}
+    container_name: sm-svc-${BSM_NAME}

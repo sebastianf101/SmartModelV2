@@ -2,22 +2,26 @@
 ##!/bin/bash
 
 # Default values
-BSM_NAME="efimero"
-BSM_PORT="3001"
-BSM_DASHBOARD_PORT="3002"
+source ./envvars_defaults.sh
+# port variables will be set to free ephemeral ports
+source ./envvars_efimeras.sh
 
-# Function to display help
 show_help() {
-    echo "Usage: $0 [--name BSM_NAME] [--port BSM_PORT] [--dashboard BSM_DASHBOARD_PORT] [--help]"
+    echo "Uso: $0 [--name NOMBRE] [--port PUERTO] [--dashboard PUERTO_TAB] [--ssh PUERTO_SSH] [--yml CONFIG] [--help]"
     echo
-    echo "Options:"
-    echo "  --name BSM_NAME    Nombre del contenedor (default: \$BSM_NAME ó 'efimero')"
-    echo "  --port BSM_PORT    Puerto asociado (default: \$BSM_PORT ó '3001')"
-    echo "  --dashboard BSM_DASHBOARD_PORT Puerto reservado para tableros interactivos (default: \$BSM_DASHBOARD_PORT ó '3002')"
-    echo "  --help             Muestra esta explicación"
-    echo 
-    echo "Ejemplo:"
-    echo "./Levantar_Contenedor.sh --name Mi_SM --port 3000"
+    echo "Opciones:"
+    echo "  --name NOMBRE      Nombre del contenedor (por defecto: \$BSM_NAME)"
+    echo "  --port PUERTO      Puerto principal del servicio (por defecto: \$BSM_PORT)"
+    echo "  --dashboard PUERTO Puerto para tableros interactivos (por defecto: \$BSM_DASHBOARD_PORT)"
+    echo "  --ssh PUERTO       Puerto para acceso SSH al contenedor (por defecto: \$BSM_SSH_PORT)"
+    echo "  --yml CONFIG       Perfil de docker-compose a usar (bsm|api) o ruta a un archivo .yml (por defecto: \$BSM_YML)"
+    echo "  --help             Muestra esta ayuda"
+    echo
+    echo "Ejemplos:"
+    echo "  ./Levantar_Contenedor.sh --name Mi_SM --port 3000"
+    echo "  ./Levantar_Contenedor.sh --name Mi_SM --port 2999 --dashboard 3000 --yml api"
+    echo "  ./Levantar_Contenedor.sh --name Mi_SM --port 2999 --dashboard 3000 --ssh 2222 --yml api"
+    echo
 }
 
 # Parse parameters
@@ -29,13 +33,19 @@ while [[ "$1" != "" ]]; do
         --port ) shift
                  BSM_PORT=$1
                  ;;
+        --ssh ) shift
+                BSM_SSH_PORT=$1
+                ;;
         --dashboard ) shift
-                 BSM_DASHBOARD_PORT=$1
-                 ;;
+                BSM_DASHBOARD_PORT=$1
+                ;;
+        --yml ) shift
+                BSM_YML=$1
+                ;;
         --help ) show_help
                  exit 0
                  ;;
-        * )      echo "Unknown parameter: $1"
+        * ) echo "Unknown parameter: $1"
                  show_help
                  exit 1
                  ;;
@@ -43,25 +53,34 @@ while [[ "$1" != "" ]]; do
     shift
 done
 
-if lsof -i:$BSM_PORT > /dev/null; then
-  echo "Puerto $BSM_PORT ocupado.  Elegir otro!"
-  exit 1
-elif lsof -i:$BSM_DASHBOARD_PORT > /dev/null; then
-  echo "Puerto $BSM_DASHBOARD_PORT ocupado.  Elegir otro!"
-  exit 1
-fi
-
 export BSM_NAME=$BSM_NAME
 export BSM_PORT=$BSM_PORT
 export BSM_DASHBOARD_PORT=$BSM_DASHBOARD_PORT
+export BSM_SSH_PORT=$BSM_SSH_PORT
+export BSM_YML=$BSM_YML
 
+# Check if the selected ports are free
+if ! is_port_free "$BSM_PORT"; then
+  echo "Puerto $BSM_PORT ocupado. Elegir otro!"
+  exit 1
+fi
+if ! is_port_free "$BSM_DASHBOARD_PORT"; then
+  echo "Puerto $BSM_DASHBOARD_PORT ocupado. Elegir otro!"
+  exit 1
+fi
+if ! is_port_free "$BSM_SSH_PORT"; then
+  echo "Puerto $BSM_SSH_PORT ocupado. Elegir otro!"
+  exit 1
+fi
+
+echo "Nombre contenedor SM: $BSM_NAME"
+echo "Configuración YML: $BSM_YML"
 echo "Puerto SM: $BSM_PORT"
 echo "Puerto para Tableros: $BSM_DASHBOARD_PORT"
-echo "Nombre contenedor SM: $BSM_NAME"
+echo "Puerto para SSH: $BSM_SSH_PORT"
+echo
 
-# Resto de las variables asume default. 
-source ./envvars_defaults.sh
-
-source ./compose_up.sh
+# Actual call to docker compose up
+source ./compose_up.sh $BSM_YML
 
 

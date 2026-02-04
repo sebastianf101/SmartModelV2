@@ -1,0 +1,17 @@
+#!/usr/bin/with-contenv bash
+# s6 finish script to stop the api service after a failure.
+set -eu
+
+EXIT_CODE="$1"
+SIGNAL="$2"
+
+>&2 echo "[api] finish: run exited (code=${EXIT_CODE}, signal=${SIGNAL})."
+
+if [ "${EXIT_CODE}" != "0" ] || [ "${SIGNAL}" != "0" ]; then
+  >&2 echo "[api] finish: disabling automatic restarts after failure."
+  if command -v s6-svc >/dev/null 2>&1; then
+    s6-svc -d /run/s6/services/api || true
+  fi
+fi
+
+exit 0
