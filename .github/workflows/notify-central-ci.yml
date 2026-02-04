@@ -1,10 +1,12 @@
-# 
-name: Notify central CI
+# Deprecated: este repo ahora es el central.
+name: Notify central CI (deprecated)
 
-on: [push, pull_request]
+on:
+  workflow_dispatch:
 
 jobs:
   dispatch:
+    if: false
     runs-on: ubuntu-latest
     steps:
       - name: Call central pipeline
