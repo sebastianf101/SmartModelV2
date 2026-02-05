@@ -1,6 +1,11 @@
 # Ensure non-interactive sessions default to PNG device (prevents Rplots.pdf)
 if (!interactive()) options(device = function(...) grDevices::png(...))
 
+# Logging system (load if not already present)
+if (!exists("bsm_logger") || !inherits(bsm_logger, "BsmLogger")) {
+  source(fs::path(bsm_path, "Librerias/Funciones logging.R"), local = FALSE)
+}
+  
 # Libraries
 # # Paquetes
 suppressMessages({

@@ -1439,7 +1439,7 @@ write_progress_json <- function(progress_ratio, current_step, time_elapsed, time
     time_elapsed = time_elapsed,
     time_remaining = time_remaining,
     timestamp = format(Sys.time(), "%Y-%m-%d %H:%M:%OS3"),
-    notebook = .bsm_log_state$current_notebook %||% "-"
+    notebook = bsm_logger$current_notebook %||% "-"
   )
 
   tmp_path <- paste0(json_path, ".tmp")
