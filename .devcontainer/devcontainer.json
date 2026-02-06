@@ -1,0 +1,28 @@
+{
+	"name": "SmartModel Dev",
+	"dockerComposeFile": [
+		"../Instal/Automat/config-contenedor-bsm.yml",
+		"docker-compose.dev.yml"
+	],
+		"service": "studio",
+	// Specific workspace folder matching the mount point
+	"workspaceFolder": "/home/user/Documents/besmart/10.3",
+
+    // Use 'user' user which maps to UID 1301 as requested
+    "remoteUser": "user",
+    "updateRemoteUserUID": false,
+
+    "runServices": ["studio"],
+
+    "forwardPorts": [8787, 3838],
+
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "REditorSupport.r",
+                "ms-python.python",
+                "quarto.quarto"
+            ]
+        }
+    }
+ }
