@@ -1,0 +1,6 @@
+services:
+  studio:
+    volumes:
+      # Mount only the specific version folder for sync
+      - ../volume_versiones/10.3:/home/user/Documents/besmart/10.3
+
