@@ -32,7 +32,7 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
       # Expose logs directory (including progress.json) for external monitoring
-      - ${BSM_LOGS_HOST_DIR:-/tmp/sm-logs}:${BSM_LOG_DIR}:rw
+      - ${BSM_LOGS_HOST_DIR}:${BSM_LOG_DIR}:rw
     networks:
       - smartmodel-net
     deploy:

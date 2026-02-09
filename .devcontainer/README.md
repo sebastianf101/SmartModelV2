@@ -29,4 +29,4 @@ If you create new files inside the container (which will be owned by UID 1301), 
 
 ### 2. Environment Variables
 
-Variables are loaded from `.devcontainer/.env`. If you need to change ports or default settings, edit that file and rebuild the container.
+Compose loads variables from `.devcontainer/.env` because the dev compose file is listed first (making `.devcontainer` the project directory). If you need to change ports or defaults, edit that file and rebuild the container.

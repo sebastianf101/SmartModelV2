@@ -1,5 +1,8 @@
 services:
   studio:
+    # Keep devcontainer settings in one place.
+    env_file:
+      - ./.env
     volumes:
       # Mount only the specific version folder for sync
       - ../volume_versiones/10.3:/home/user/Documents/besmart/10.3
