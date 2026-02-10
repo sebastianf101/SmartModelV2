@@ -10,6 +10,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libsodium-dev libssl-dev libxml2-dev lsof make pandoc unixodbc-dev xclip zlib1g-dev \
     libtbb-dev libglpk-dev libharfbuzz-dev libfribidi-dev \
     libwebp-dev libpng-dev libjpeg-dev libtiff-dev \
+    libcairo2-dev default-libmysqlclient-dev libpq-dev libsasl2-dev \
+    libsqlite3-dev libssh2-1-dev libxtst6 libfreetype6-dev libtiff5-dev \
     openssh-server openssh-client sudo curl tar locales iproute2 xz-utils \
     build-essential python3 python3-pip python3-venv gnupg lsb-release apt-transport-https \
     ca-certificates netcat-openbsd \
@@ -42,14 +44,23 @@ ENV LC_ALL=es_AR.UTF-8
 #RUN echo "options(repos = c(CRAN = 'https://cran.rstudio.com/'), download.file.method = 'libcurl', Ncpus = 4)" >> /usr/local/lib/R/etc/Rprofile.site
 RUN echo "options(repos = c(CRAN = 'https://packagemanager.posit.co/cran/__linux__/noble/latest'), download.file.method = 'libcurl', Ncpus = 4)" >> /usr/local/lib/R/etc/Rprofile.site
 RUN install2.r --error --skipinstalled --ncpus -1 \
+arrow \
 assertthat \
 attempt \
+BiocManager \
 broom \
 config \
+dbplyr \
+DBI \
+devtools \
 dplyr \
+dtplyr \
+duckdb \
 DT \
 forcats \
+fst \
 fs \
+gert \
 ggplot2 \
 glue \
 gt \
@@ -58,11 +69,13 @@ gtsummary \
 htmltools \
 keyring \
 knitr \
+Lahman \
 languageserver \
 listviewer \
 lobstr \
 magrittr \
 markdown \
+nycflights13 \
 odbc \
 openxlsx \
 pkgload \
@@ -76,9 +89,12 @@ readr \
 readxl \
 reticulate \
 rlang \
+RMariaDB \
 rmarkdown \
+RPostgres \
 rsample \
 ragg \
+RSQLite \
 scales \
 shiny \
 shinyauthr \
@@ -89,6 +105,7 @@ stringr \
 testthat \
 tibble \
 tidyr \
+tidyverse \
 tidymodels \
 vctrs \
 vroom \
