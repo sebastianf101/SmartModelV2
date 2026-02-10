@@ -1,5 +1,4 @@
-# Actualizado al 202509
-# la imagen rocker/ml fue deprecada!
+# Actualizado al 202602
 # Ojo que uso latest! Testear antes de producción!
 FROM rocker/r-ver:latest
 # Agregué libxt6 de acuerdoa a:
@@ -41,7 +40,6 @@ RUN sed -i '/es_AR.UTF-8/s/^# //g' /etc/locale.gen && \
 ENV LANG=es_AR.UTF-8
 ENV LC_ALL=es_AR.UTF-8
 
-#RUN echo "options(repos = c(CRAN = 'https://cran.rstudio.com/'), download.file.method = 'libcurl', Ncpus = 4)" >> /usr/local/lib/R/etc/Rprofile.site
 RUN echo "options(repos = c(CRAN = 'https://packagemanager.posit.co/cran/__linux__/noble/latest'), download.file.method = 'libcurl', Ncpus = 4)" >> /usr/local/lib/R/etc/Rprofile.site
 RUN install2.r --error --skipinstalled --ncpus -1 \
 arrow \
