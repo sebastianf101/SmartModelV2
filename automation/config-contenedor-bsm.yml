@@ -3,9 +3,9 @@ name: sm-cont-${BSM_NAME}
 services:
   studio:
     image: ${BSM_IMAGE}
-     ports:
-       - ${BSM_DASHBOARD_PORT}:3838
-       - ${BSM_SSH_PORT}:22
+    ports:
+      - ${BSM_DASHBOARD_PORT}:3838
+      - ${BSM_SSH_PORT}:22
     working_dir: ${BSM_DIR}
     healthcheck:
       test: ["CMD-SHELL", "nc -z localhost 22"]
