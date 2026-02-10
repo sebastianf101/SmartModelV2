@@ -3,3 +3,9 @@
 .RData
 .Ruserdata
 *.html
+
+# Private SSH keys
+*.ppk
+id_consultor
+id_rocker
+!*.pub
