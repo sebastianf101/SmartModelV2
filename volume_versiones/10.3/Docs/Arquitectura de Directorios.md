@@ -2,36 +2,9 @@
 
 ## Estructura de Directorios
 
-SmartModel usa una arquitectura de dos niveles con copias locales para facilitar el desarrollo:
+SmartModel usa una arquitectura con copia local para facilitar el desarrollo:
 
-### 1. Plantilla Base (Backup, Read-Only)
-**Ubicación**: `/var/data/besmart/versiones/{version}/`
-
-```
-/var/data/besmart/versiones/10.3/
-├── Ej_Inicial/              # Plantilla inicial para usuarios
-│   ├── Cuadernos/          # Notebooks Quarto
-│   ├── Scripts/            # Scripts R de utilidad
-│   ├── Params/             # Parámetros de configuración
-│   ├── Datos/              # Datos de ejemplo
-│   └── Docs/               # Documentación
-└── Librerias/              # Librerías base (BACKUP)
-    ├── Funciones auxiliares.R
-    ├── Funciones logging.R
-    ├── Setup.R
-    ├── Utils Tejido.R
-    └── Utils Pres and Reports.R
-```
-
-**Variable de entorno**: `version_path`
-
-Características:
-- ✅ Read-only (montado desde volumen Docker)
-- ✅ Usado como plantilla/backup
-- ✅ Versionado (10.3, 10.4, etc.)
-- ⚠️ No se usa directamente en ejecución
-
-### 2. Espacio de Trabajo del Usuario (Read-Write)
+### 1. Espacio de Trabajo del Usuario (Read-Write)
 **Ubicación**: `~/Documents/besmart/{version}/`
 
 ```
@@ -66,16 +39,32 @@ Características:
 - ✅ Logs y trabajos se guardan aquí
 - ✅ Puede modificar notebooks y código localmente
 
+### 2. Versiones Base (Read-Only)
+**Ubicación**: `/var/data/besmart/versiones/{version}/`
+
+```
+/var/data/besmart/versiones/10.3/
+├── Cuadernos/
+├── Scripts/
+├── Params/
+├── Datos/
+├── Docs/
+├── Tableros/
+└── Librerias/
+```
+
+Características:
+- ✅ Read-only (montado desde volumen Docker)
+- ✅ Fuente para copias iniciales
+- ✅ Versionado (10.3, 10.4, etc.)
+
 ## Configuración en RProfile.site
 
-El archivo `/etc/R/Rprofile.site` configura ambas rutas:
+El archivo `/etc/R/Rprofile.site` configura la ruta local:
 
 ```r
 # Variables de entorno
 Sys.getenv("BSM_VERSION") -> version_bsm
-
-# Ruta a plantilla base (BACKUP, read-only)
-fs::path("/var/data/besmart/versiones", version_bsm) -> version_path
 
 # Ruta a espacio de trabajo del usuario (READ-WRITE)
 fs::path("~/Documents/besmart", version_bsm) -> bsm_path
@@ -89,7 +78,7 @@ bsm_path |> fs::dir_create("Trabajo")
 # Establecer directorio de trabajo
 fs::path(bsm_path) |> setwd()
 
-# Cargar librerías LOCALES desde bsm_path (ahora editables)
+# Cargar librerías LOCALES desde bsm_path
 sys.source(fs::path(bsm_path, "Librerias/Utils Tejido.R"), envir = globalenv())
 sys.source(fs::path(bsm_path, "Librerias/Funciones auxiliares.R"), envir = globalenv())
 sys.source(fs::path(bsm_path, "Librerias/Utils Pres and Reports.R"), envir = globalenv())
@@ -101,12 +90,9 @@ sys.source(fs::path(bsm_path, "Librerias/Utils Pres and Reports.R"), envir = glo
 ```
 RProfile.site ejecuta:
   ↓
-Define version_path (/var/data/besmart/versiones/10.3)
 Define bsm_path (~/Documents/besmart/10.3)
   ↓
 Crea directorios en bsm_path (Logs, Trabajo, etc.)
-  ↓
-Carga librerías desde version_path
   ↓
 Establece bsm_path como directorio de trabajo
 ```
@@ -146,7 +132,7 @@ environment:
   PROGRESS_JSON_PATH: "${BSM_LOG_DIR}/progress.json"
 
 volumes:
-  # Librerías compartidas (read-only)
+  # Librerías y contenido versionado (read-only)
   - /var/data/besmart/versiones:/var/data/besmart/versiones:ro
 
   # Logs del usuario (read-write, expuesto al host)
@@ -160,11 +146,8 @@ El script `Init_users.sh` prepara el espacio de trabajo para nuevos usuarios:
 ```bash
 # Para cada usuario con UID 1000-1999
 for u in $_USERS; do
-    # Copiar plantilla desde version_path
-    /bin/cp -rf /var/data/besmart/versiones/10.3/Ej_Inicial ~/Documents/besmart/10.3/
-
-    # Copiar Librerias (ahora editable localmente)
-    /bin/cp -rf /var/data/besmart/versiones/10.3/Librerias ~/Documents/besmart/10.3/
+    # Copiar versión completa al workspace
+    /bin/cp -rf /var/data/besmart/versiones/10.3/. ~/Documents/besmart/10.3/
 
     # Crear directorios de trabajo
     mkdir -p ~/Documents/besmart/10.3/Logs
@@ -178,12 +161,6 @@ done
 ```
 
 ## Referencias a Variables en Código
-
-### ❌ INCORRECTO (Obsoleto)
-```r
-# NO usar version_path para cargar librerías (ya no es la fuente primaria)
-source(fs::path(version_path, "Librerias/Funciones logging.R"))
-```
 
 ### ✅ CORRECTO
 ```r
@@ -203,9 +180,9 @@ saveRDS(data, fs::path(bsm_path, "Trabajo/datos.rds"))
    - Fácil debugging y modificación local
 
 2. **Backup centralizado**
-   - `version_path` mantiene plantilla original
-   - Fácil restaurar desde versión base
-   - Versionado claro
+  - `/var/data/besmart/versiones/{version}` mantiene plantilla original
+  - Fácil restaurar desde versión base
+  - Versionado claro
 
 3. **Aislamiento de usuarios**
    - Cada usuario tiene su propia copia completa
@@ -214,7 +191,7 @@ saveRDS(data, fs::path(bsm_path, "Trabajo/datos.rds"))
 
 4. **Flexibilidad**
    - Usuarios pueden modificar librerías localmente
-   - Actualizaciones globales via `version_path` → re-copy
+  - Actualizaciones globales via `/var/data/besmart/versiones/{version}` → re-copy
    - Fácil rollback a versión anterior
 
 5. **Monitoreo externo**
@@ -267,12 +244,7 @@ cp -rf /var/data/besmart/versiones/10.3/Librerias/* ~/Documents/besmart/10.3/Lib
 
 ## Migración de Código Existente
 
-Si tienes código que usa `version_path` para cargar librerías:
-
-**Antes**:
-```r
-source(fs::path(version_path, "Librerias/Funciones logging.R"))
-```
+Si tienes código que usa rutas a `/var/data/besmart/versiones`, cámbialo a `bsm_path`:
 
 **Después**:
 ```r

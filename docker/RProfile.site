@@ -30,7 +30,6 @@ options(
 
 # Script para ejecutar antes de los Cuadernos.
 Sys.getenv("BSM_VERSION") -> version_bsm
-fs::path("/var/data/besmart/versiones", version_bsm) -> version_path
 fs::path("~/Documents/besmart", version_bsm) -> bsm_path
 
 # Por las dudas

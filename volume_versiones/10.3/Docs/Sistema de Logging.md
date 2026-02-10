@@ -23,10 +23,10 @@ SmartModel implementa un sistema de logging completo y estructurado que sigue la
 ├── Reportes/                             # Rendered reports
 └── Auxil/                                # Auxiliary files
 
-# Shared libraries (version_path - read-only)
-/var/data/besmart/versiones/10.3/
+# Librerías en el workspace (bsm_path)
+~/Documents/besmart/10.3/
 └── Librerias/
-    └── Funciones logging.R               # Sistema de logging
+  └── Funciones logging.R               # Sistema de logging
 ```
 
 ## Inicialización
@@ -34,8 +34,8 @@ SmartModel implementa un sistema de logging completo y estructurado que sigue la
 El sistema se inicializa automáticamente en `Setup.R`:
 
 ```r
-# Se carga en Setup.R (from shared version_path)
-source(fs::path(version_path, "Librerias/Funciones logging.R"))
+# Se carga en Setup.R (desde bsm_path)
+source(fs::path(bsm_path, "Librerias/Funciones logging.R"))
 
 # Inicialización automática con detección de modo
 .bsm_session_id <- log_init(

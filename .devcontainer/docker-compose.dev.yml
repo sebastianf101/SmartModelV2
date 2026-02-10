@@ -2,8 +2,9 @@ services:
   studio:
     # Keep devcontainer settings in one place.
     env_file:
-      - ./.env
+      - ../.env
     volumes:
-      # Mount only the specific version folder for sync
-      - ../volume_versiones/10.3:/home/user/Documents/besmart/10.3
+      # Mount the project version folder for sync. Uses BSM_VERSION from .env so it's
+      # easy to switch versions in development without editing this file.
+      - ../volume_versiones/${BSM_VERSION}:${BSM_DIR}
 

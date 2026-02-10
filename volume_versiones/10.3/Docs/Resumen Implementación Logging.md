@@ -77,26 +77,24 @@ Cambios:
 SmartModelV2/
 ├── docker/
 │   ├── Init_users.sh                          [MODIFICADO]
-│   └── RProfile.site                          [Ya configura version_path y bsm_path]
+│   └── RProfile.site                          [Configura bsm_path]
 ├── automation/
 │   └── config-contenedor-bsm.yml              [MODIFICADO]
 │
 └── volume_versiones/10.3/
-    ├── Librerias/                             [Compartido READ-ONLY via version_path]
+   ├── Librerias/                             [Fuente de librerías de la versión]
     │   ├── Funciones logging.R                [NUEVO]
     │   ├── Funciones auxiliares.R             [MODIFICADO]
     │   └── Setup.R                            [MODIFICADO]
-    │
-    └── Ej_Inicial/
-        ├── Docs/
-        │   ├── Sistema de Logging.md          [NUEVO]
-        │   ├── Logging Quick Reference.md     [NUEVO]
-        │   └── Arquitectura de Directorios.md [NUEVO]
-        │
-        └── Scripts/
-            ├── Tejer Cuadernos.R              [MODIFICADO]
-            ├── Limpiar Logs.R                 [NUEVO]
-            └── Ver Logs.R                     [NUEVO]
+   ├── Docs/
+   │   ├── Sistema de Logging.md              [NUEVO]
+   │   ├── Logging Quick Reference.md         [NUEVO]
+   │   └── Arquitectura de Directorios.md     [NUEVO]
+   │
+   └── Scripts/
+      ├── Tejer Cuadernos.R                  [MODIFICADO]
+      ├── Limpiar Logs.R                     [NUEVO]
+      └── Ver Logs.R                         [NUEVO]
 
 # Usuario workspace (bsm_path - READ-WRITE)
 ~/Documents/besmart/10.3/
@@ -112,13 +110,7 @@ SmartModelV2/
 
 SmartModel usa una arquitectura de dos niveles:
 
-1. **`version_path`** (`/var/data/besmart/versiones/10.3/`)
-   - Librerías compartidas READ-ONLY
-   - Código fuente de notebooks
-   - Montado desde volumen Docker
-   - Actualizado centralizadamente
-
-2. **`bsm_path`** (`~/Documents/besmart/10.3/`)
+1. **`bsm_path`** (`~/Documents/besmart/10.3/`)
    - Espacio de trabajo del usuario READ-WRITE
    - Logs, trabajos, reportes
    - Aislado por usuario

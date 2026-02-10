@@ -1,8 +1,8 @@
 {
 	"name": "SmartModel Dev",
     "dockerComposeFile": [
-        "docker-compose.dev.yml",
-        "../automation/config-contenedor-bsm.yml"
+        "../automation/config-contenedor-bsm.yml",
+        "docker-compose.dev.yml"
     ],
 	"service": "studio",
 	// Specific workspace folder matching the mount point

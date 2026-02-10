@@ -8,31 +8,37 @@ if ! id -u "${USER_NAME}" >/dev/null 2>&1; then
 fi
 
 echo "Procesando usuario ${USER_NAME}"
-dir_dest="/home/${USER_NAME}/Documents/besmart"
-   mkdir -p "$dir_dest"
-   for dir_start in /var/data/besmart/versiones/*
-   do
+src_base="/var/data/besmart/versiones"
+dest_base="/home/${USER_NAME}/Documents/besmart"
+mkdir -p "$dest_base"
+
+copy_version() {
+   local version="$1"
+   local orig_version_path="$src_base/$version"
+   local dest_path="$dest_base/$version"
+
+   if [ ! -d "$orig_version_path" ]; then
+      echo "No existe la versión $version en $src_base"
+      return 1
+   fi
+
+   echo "Copiando $orig_version_path en $dest_path"
+   /bin/cp -rf "$orig_version_path/." "$dest_path"
+
+   mkdir -p "$dest_path/Logs"
+   mkdir -p "$dest_path/Trabajo"
+   mkdir -p "$dest_path/Reportes"
+   mkdir -p "$dest_path/Auxil"
+}
+
+if [ -n "$BSM_VERSION" ]; then
+   copy_version "$BSM_VERSION"
+else
+   for dir_start in "$src_base"/*; do
       version=$(basename "$dir_start")
-      echo "La versión es $version"
-
-      # Copy Ej_Inicial directory
-      orig_ej_path="/var/data/besmart/versiones/$version/Ej_Inicial"
-      dest_path="$dir_dest/$version"
-      echo "Copiando $orig_ej_path en $dest_path"
-      /bin/cp -rf "$orig_ej_path" "$dest_path"
-
-      # Copy Librerias directory
-      orig_lib_path="/var/data/besmart/versiones/$version/Librerias"
-      dest_lib_path="$dest_path/Librerias"
-      echo "Copiando $orig_lib_path en $dest_lib_path"
-      /bin/cp -rf "$orig_lib_path" "$dest_lib_path"
-
-      # Create necessary directories for user workspace
-      mkdir -p "$dest_path/Logs"
-      mkdir -p "$dest_path/Trabajo"
-      mkdir -p "$dest_path/Reportes"
-      mkdir -p "$dest_path/Auxil"
+      copy_version "$version"
    done
+fi
    # Create .bashrc for non-login shells (Positron, etc.)
    bashrc_file="/home/${USER_NAME}/.bashrc"
    if [ ! -f "$bashrc_file" ]; then

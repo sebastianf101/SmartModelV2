@@ -25,7 +25,7 @@ This document defines the layout after the 2026-02 reorganization.
 | `Dockerfile.azure` | Azure wrapper: copies job scripts into studio image |
 | `entrypoint.sh` | Unified SSH entrypoint (generates host keys, starts sshd) |
 | `build.sh` | Build all images, push to Docker Hub + GHCR |
-| `RProfile.site` | R site profile (sets `version_path`, `bsm_path`) |
+| `RProfile.site` | R site profile (sets `bsm_path`) |
 | `Init_users.sh` | User workspace initialization at build time |
 | `alta_usr_docker.sh` | Helper to add users (legacy, kept for patching) |
 | `id_rocker.pub` | SSH public key baked into image |
@@ -53,8 +53,7 @@ This document defines the layout after the 2026-02 reorganization.
 
 | Path | Description |
 |------|-------------|
-| `Librerias/` | Shared R libraries (Setup.R, logging, auxiliary functions) — READ-ONLY at runtime |
-| `Ej_Inicial/` | Initial workspace template: Cuadernos, Scripts, Params, Docs, Tableros |
+| `Librerias/` | R libraries (Setup.R, logging, auxiliary functions) |
 | `Logs/`, `Reportes/`, `Trabajo/`, `Auxil/` | Runtime directories (user workspace) |
 
 ## Conventions
@@ -62,7 +61,6 @@ This document defines the layout after the 2026-02 reorganization.
 - **Single user**: `user` with UID/GID `1000:1000`, group `consultores_ext`.
 - **SSH-only**: No RStudio Server, no s6. Port 22 only.
 - **Build context**: Always the project root. Dockerfiles reference `./docker/…` paths.
-- **Two path levels at runtime**:
-  - `version_path` (`/var/data/besmart/versiones/10.3/`) — read-only shared code.
+- **Single runtime workspace**:
   - `bsm_path` (`~/Documents/besmart/10.3/`) — read-write user workspace.
 

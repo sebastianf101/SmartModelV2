@@ -7,6 +7,13 @@ set -euo pipefail
 #   ./compose_up.sh ./custom.yml   # use a custom compose file
 MODE="${1:-bsm}"
 
+ENV_FILE="${ENV_FILE:-../.env}"
+if [ -f "$ENV_FILE" ]; then
+  set -a
+  source "$ENV_FILE"
+  set +a
+fi
+
 die() { return 1 2>/dev/null || exit 1; }
 
 case "$MODE" in
