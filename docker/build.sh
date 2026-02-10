@@ -31,11 +31,11 @@ check_and_set_env_var "GHCR_PUSH_PWD"
 
 echo "Versión de Imagen: $IMAGE_VERSION"
 echo "Inicio construcción de imagen bsm-studio-paq"
-docker build -t bsm-studio-paq -f docker/Dockerfile.studio-base . #--no-cache
+docker build -t bsm-studio-paq -f docker/Dockerfile.base . #--no-cache
 docker tag bsm-studio-paq sebastianf101/bsm-studio-paq
 echo "Fin de construcción de imagen bsm-studio-paq"
 echo "Inicio construcción de imagen bsm-studio"
-docker build -t bsm-studio -f docker/Dockerfile.studio --progress=plain . #--no-cache
+docker build -t bsm-studio -f docker/Dockerfile.config --progress=plain . #--no-cache
 echo "Fin de construcción de imagen bsm-studio"
 echo "Inicio subida a docker Hub de imagen sebastianf101/bsm-studio:$IMAGE_VERSION"
 echo $DOCKER_PWD | docker login -u "sebastianf101" --password-stdin docker.io
