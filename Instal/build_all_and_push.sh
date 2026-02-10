@@ -51,7 +51,8 @@ docker push ghcr.io/sferro-besmart/smartmodelv2:$IMAGE_VERSION
 docker logout ghcr.io
 echo "Fin subida a GitHub Container Registry"
 echo "Inicio generación imagen.tar.gz"
-docker save bsm-studio | gzip -9 > Instal/Automat/bsm-studio.tar.gz
+mkdir -p Instal/Artifacts
+docker save bsm-studio | gzip -9 > Instal/Artifacts/bsm-studio.tar.gz
 echo "Fin generación imagen.tar.gz"
 echo
 

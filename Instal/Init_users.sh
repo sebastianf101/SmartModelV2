@@ -1,11 +1,14 @@
 #!/bin/bash
-# get list of all users
-echo "Se afectan todos los usuarios con 1000 <=UID < 2000"
-_USERS="$(awk -F: '/\/home/ && ($3 >= 1000) && ($3 < 2000) {print $1}' /etc/passwd)"
-for u in $_USERS
-do
-   echo "Procesando usuario $u"
-   dir_dest="/home/${u}/Documents/besmart"
+USER_NAME="user"
+echo "Se afecta solo el usuario ${USER_NAME}"
+
+if ! id -u "${USER_NAME}" >/dev/null 2>&1; then
+   echo "Usuario ${USER_NAME} no existe. Abortando."
+   exit 1
+fi
+
+echo "Procesando usuario ${USER_NAME}"
+dir_dest="/home/${USER_NAME}/Documents/besmart"
    mkdir -p "$dir_dest"
    for dir_start in /var/data/besmart/versiones/*
    do
@@ -31,7 +34,7 @@ do
       mkdir -p "$dest_path/Auxil"
    done
    # Create .bashrc for non-login shells (Positron, etc.)
-   bashrc_file="/home/${u}/.bashrc"
+   bashrc_file="/home/${USER_NAME}/.bashrc"
    if [ ! -f "$bashrc_file" ]; then
       cat > "$bashrc_file" <<'EOF'
 # SmartModel environment setup
@@ -42,7 +45,7 @@ EOF
    fi
 
    # Create .bash_profile for SSH login shells to set up BSM environment
-   bash_profile="/home/${u}/.bash_profile"
+   bash_profile="/home/${USER_NAME}/.bash_profile"
    if [ ! -f "$bash_profile" ]; then
       cat > "$bash_profile" <<'EOF'
 # Source .bashrc if it exists
@@ -53,6 +56,5 @@ EOF
    fi
 
    # Ajusta los permisos desde cada user home.
-   chown -R $(id -un $u):$(id -gn $u) "/home/${u}"
-   chmod 0775 "/home/${u}"
-done
+   chown -R $(id -un "${USER_NAME}"):$(id -gn "${USER_NAME}") "/home/${USER_NAME}"
+   chmod 0775 "/home/${USER_NAME}"

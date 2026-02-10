@@ -1,11 +1,1 @@
-rstudio:smartmodel:1000:1000:default:/home/rstudio:/bin/bash
-user:smartmodel:1301:1300:ConsultorExterno:/home/user:/bin/bash
-user2:smartmodel:1302:1300:ConsultorExterno:/home/user2:/bin/bash
-user3:smartmodel:1303:1300:ConsultorExterno:/home/user3:/bin/bash
-user4:smartmodel:1304:1300:ConsultorExterno:/home/user4:/bin/bash
-user5:smartmodel:1305:1300:ConsultorExterno:/home/user5:/bin/bash
-usr_test:smartmodel:1311:1300:ConsultorExterno:/home/usr_test:/bin/bash
-usr_test2:smartmodel:1312:1300:ConsultorExterno:/home/usr_test2:/bin/bash
-usr_test3:smartmodel:1313:1300:ConsultorExterno:/home/usr_test3:/bin/bash
-usr_test4:smartmodel:1314:1300:ConsultorExterno:/home/usr_test4:/bin/bash
-usr_test5:smartmodel:1315:1300:ConsultorExterno:/home/usr_test5:/bin/bash
+user:smartmodel:1000:1000:ConsultorExterno:/home/user:/bin/bash

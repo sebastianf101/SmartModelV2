@@ -5,26 +5,14 @@ subtitle: "versión 10.3"
 
 # 1. Introducción
 
-En esta Guía vamos a explicar distintos modos de uso de Smart Model. Empezaremos por el uso estándar con Rstudio en <http://besmart.ar:2024/> ó [http://besmart.ar:2025/](http://besmart.ar:2024/) y terminaremos en el uso totalmente automatizado por scripts.
+En esta Guía vamos a explicar distintos modos de uso de Smart Model. Empezaremos por el uso estándar con acceso SSH y terminaremos en el uso totalmente automatizado por scripts.
 
-# 2. Rstudio en dockersrv
+# 2. SSH en dockersrv
 
-Contamos con dos servicios con el server de Rstudio preparado en:
+El acceso al contenedor se realiza por SSH (por defecto puerto 2222, configurable). Se utiliza un único usuario: `user`.
+El flujo de trabajo recomendado es ejecutar los scripts de automatización o conectarse por SSH sólo como último recurso para inspección.
 
--   <http://besmart.ar:2024/>
-
--   [http://besmart.ar:2025/](http://besmart.ar:2024/)
-
-Los usuarios disponibles son user, user1, ..., user5, usr_test, usr_test2, ..., usr_test5.
-
-Navegando hasta 10.3/Scripts/Tejer \*.R podremos ejecutar línea x línea usando ctrl-enter el Cuaderno requerido.
-
-Una vez tejidos los cuadernos podremos correr los tableros en 10.3/Scripts/Servir \*.R. Los tableros los accederemos en [http://besmart.ar:2044/](http://besmart.ar:2024/){.uri} y [http://besmart.ar:2045/](http://besmart.ar:2024/){.uri} de acuerdo a si trabajamos en <http://besmart.ar:2024/> ó a <http://besmart.ar:2024/>
-
-Este uso está pensado para uso exclusivo de Consultores. Los mismos deben acordar no usar la misma url y usuario al mismo tiempo. Se pueden usar varios usuarios en simultáneo pero hasta no contar con más recursos se recomienda un uso esporádico y liviano como demos y trabajos con muestras pequeñas en general.\
-Cabe aclarar que para el uso simultáneo cada instancia requiere un browser distinto.
-
-# 3. Rstudio local
+# 3. SmartModel local (sin RStudio)
 
 ## Requisitos
 
@@ -43,26 +31,26 @@ Instalar Docker Desktop. Docker corre en **`Linux`**. En Windows se instala en W
 
 ### 2
 
-En el disco S (\\\\datasrv) ir a la carpeta `S:\Proyectos\Smart Model` y bajarse a un directorio de Trabajo los comprimidos `Automat.zip` y la imagen  `bsm-studio.tar.gz` con una buena herramienta de FTP.  
+En el disco S (\\\\datasrv) ir a la carpeta `S:\Proyectos\Smart Model` y bajarse a un directorio de Trabajo los comprimidos `Automat.zip` y la imagen  `bsm-studio.tar.gz` con una buena herramienta de FTP.
 Luego, cargar la imagen docker con
 
   ``` bash
   docker load -i bsm-studio.tar.gz
   ```
-De forma alternativa, si se cuenta con el PAT en la variable de entorno `GHCR_PAT` se puede cargar la imagen con: 
+De forma alternativa, si se cuenta con el PAT en la variable de entorno `GHCR_PAT` se puede cargar la imagen con:
 
   ``` bash
   echo $GHCR_PAT | docker login -u sferro-besmart --password-stdin ghcr.io
   docker pull ghcr.io/sferro-besmart/smartmodelv2:v10.3.0
   docker logout ghcr.io
   docker tag ghcr.io/sferro-besmart/smartmodelv2:v10.3.0 bsm-studio
-  ``` 
+  ```
 
-Modificar la versión `10.3.0` a la última disponible. 
+Modificar la versión `10.3.0` a la última disponible.
 
 ### 3
 
-Descomprimir `Automat.zip`. Se incluye un ejemplo de referencia de directorio de entrada con los archivos '`Control de SmartModelStudio.json`', '`Control de SmartModelStudio.xlsx`', `Muestra_Desarrollo.txt`, `Muestra_Scoring.txt` y `Muestra_Validación.txt.`
+Descomprimir `Automat.zip`. Los ejemplos de entrada están en `Instal/Examples/Entrada`.
 
 ### 4
 
@@ -70,13 +58,13 @@ Abrir una terminal en el directorio de Trabajo y verificar que los .sh tengan pe
 
 ### 5
 Verificar que se encuentra la imagen cargada en Docker Desktop Images\
-    Luego se puede borrar el tar.gz para liberar espacio si se usó ese método. 
+    Luego se puede borrar el tar.gz para liberar espacio si se usó ese método.
 
 ### 6
 Con los comandos
 
     ``` bash
-    ./Levantar_Contenedor.sh [--name BSM_NAME] [--port BSM_PORT] [--dashboard BSM_DASHBOARD_PORT] [--help]
+    ./Levantar_Contenedor.sh [--name BSM_NAME] [--dashboard BSM_DASHBOARD_PORT] [--ssh BSM_SSH_PORT] [--help]
     ```
 
     ``` bash
@@ -88,15 +76,13 @@ Levantamos o bajamos el contenedor con la imagen de Smartmodel.
 Por ejemplo levantar con:
 
     ``` bash
-    ./Levantar_Contenedor.sh --name Mi_SM --port 2024 --dashboard 2044
+    ./Levantar_Contenedor.sh --name Mi_SM --dashboard 2044 --ssh 2222
     ```
 
-Con el contenedor corriendo podemos acceder al Rstudio en el puerto local 2024. Cuando corramos un tablero podremos acceder a él en el puerto 2044.
+Con el contenedor corriendo, los tableros se exponen en el puerto configurado (por defecto 3001). El acceso por SSH es el mecanismo de último recurso.
 
-### 7  
-Verificar que está subido el servicio abriendo con un browser localhost:2024 y logueándonos con el usuario user para entrar al Rstudio.
-
-    Como en el caso anterior están disponibles también los usuarios user, user2, .., user5, usr_test, usr_test2, ..., usr_test5. Para un uso simultáneo cada instancia requiere un *browser* distinto. No es suficiente una pestaña o ventana distinta.
+### 7
+Verificar que está subido el servicio accediendo al tablero en el puerto configurado. El acceso por SSH se usa sólo para diagnóstico.
 
 ### 8
 Verificar en Docker Desktop Containers las estadísticas de uso.\
@@ -149,10 +135,10 @@ Para desarrollar un modelo debemos correr primero Modelar.sh, luego copiar Model
 #### Esquema
 
 ```{mermaid}
-flowchart TB   
+flowchart TB
   subgraph Dir_In[Directorio Entrada]
     direction TB
-      i1(Parámetros <br> Control de SmartModelStudio.xlsx o json*) 
+      i1(Parámetros <br> Control de SmartModelStudio.xlsx o json*)
       i2(Muestra Desarrollo <br> data_source_delim_path)
   end
   subgraph Dir_Out[Directorio Salida]
@@ -170,13 +156,13 @@ flowchart TB
     m4[Binning Vars <br> VarsContDiscretizadas.Rdat VarsFactDiscretizadas.Rdat]
     m5[Tabla Performance Desarrollo <br> tabPerfOrig.Rdat]
     m6[Detalle IVs de candidatas -<i>si par_quick==0</i> - <br> Estab_ivs_cand_InS.Rdat]
-  end 
+  end
   subgraph sh[Modelar.sh]
     s1(Clean-Transf.qmd) --> s2(Modelling.qmd)
   end
-  Dir_In --> sh --> Mod 
+  Dir_In --> sh --> Mod
   sh --> Dir_Out
-  Mod --> Dir_Out 
+  Mod --> Dir_Out
 ```
 
 ### Validar_Desa.sh
@@ -198,10 +184,10 @@ El script busca los archivos 'Control de SmartModelStudio.xlsx/.json', Modelo.zi
 #### Esquema
 
 ```{mermaid}
-flowchart TB   
+flowchart TB
   subgraph Dir_In[Directorio Entrada]
     direction TB
-      i1(Parámetros <br> Control de SmartModelStudio.xlsx o json*) 
+      i1(Parámetros <br> Control de SmartModelStudio.xlsx o json*)
       i2(Muestra Desarrollo <br> data_source_delim_path)
       i3(Modelo <br> Modelo.zip)
   end
@@ -221,13 +207,13 @@ flowchart TB
     m5[Tabla Performance Desarrollo <br> tabPerfOrig.Rdat]
     m6[<b> Niveles de Riesgo y Segmentos </b> <br> tab_niv_y_rel.Rdat]
     m7[Detalle IVs modelo <br> Estab_ivs_mod_InS.Rdat]
-  end 
+  end
   subgraph sh[Validar_Desa.sh]
     s1(Validation_InS.qmd)
   end
-  Dir_In --> sh --> Mod 
+  Dir_In --> sh --> Mod
   sh --> Dir_Out
-  Mod --> Dir_Out 
+  Mod --> Dir_Out
 ```
 
 ## Producción
@@ -253,11 +239,11 @@ Con la versión del Modelo en Modelo.zip calculamos los scores con Scoring.sh y 
 #### Esquema
 
 ```{mermaid}
-flowchart TB   
+flowchart TB
   subgraph Dir_In[Directorio Entrada]
     direction TB
-      i1(Parámetros <br> Control de SmartModelStudio.xlsx o json*) 
-      i2(Muestra Desarrollo <br> data_source_delim_path)      
+      i1(Parámetros <br> Control de SmartModelStudio.xlsx o json*)
+      i2(Muestra Desarrollo <br> data_source_delim_path)
       i3(Muestra Scoring <br> data_source_scoring_delim_path)
       i4(Modelo <br> Modelo.zip)
   end
@@ -292,10 +278,10 @@ flowchart TB
 #### Esquema
 
 ```{mermaid}
-flowchart TB   
+flowchart TB
   subgraph Dir_In[Directorio Entrada]
     direction TB
-      i1(Parámetros <br> Control de SmartModelStudio.xlsx o json*) 
+      i1(Parámetros <br> Control de SmartModelStudio.xlsx o json*)
       i2(Muestra Nueva con target <br> data_source_val_delim_path)
       i3(Modelo <br> Modelo.zip)
   end
@@ -309,7 +295,7 @@ flowchart TB
   subgraph sh[Validar_Nueva.sh]
     s1(Validation_OsS.qmd)
   end
-  Dir_In --> sh --> Dir_Out 
+  Dir_In --> sh --> Dir_Out
 ```
 
 ### Tablero_IV.sh
@@ -320,11 +306,11 @@ flowchart TB
 
 #### Pasos
 
-1.  El script busca los archivos 'Control de SmartModelStudio.xlsx/.json', Modelo.zip *actualizado* por Validar_Desa y opcionalmente múltiples archivos con el patrón 'Estab_ivs_*.Rdat' en dir_in. 
+1.  El script busca los archivos 'Control de SmartModelStudio.xlsx/.json', Modelo.zip *actualizado* por Validar_Desa y opcionalmente múltiples archivos con el patrón 'Estab_ivs_*.Rdat' en dir_in.
 
-2.  Levanta un contenedor efímero, y un puerto local efímero.  Ejecuta el tablero de Exploración de IV y abre un browser en el puerto efímero para mostrarlo.  
+2.  Levanta un contenedor efímero, y un puerto local efímero.  Ejecuta el tablero de Exploración de IV y abre un browser en el puerto efímero para mostrarlo.
 
-3. Cuando el usuario presiona el botón "Salir", baja el contenedor efímero. 
+3. Cuando el usuario presiona el botón "Salir", baja el contenedor efímero.
 
 3.  Copia los resultados logs de salida y errores.
 
@@ -333,10 +319,10 @@ flowchart TB
 #### Esquema
 
 ```{mermaid}
-flowchart TB   
+flowchart TB
   subgraph Dir_In[Directorio Entrada]
     direction TB
-      i1(Parámetros <br> Control de SmartModelStudio.xlsx o json*) 
+      i1(Parámetros <br> Control de SmartModelStudio.xlsx o json*)
       i2(Reportes IVs <br> Estab_ivs_*.Rdat)
       i3(Modelo <br> Modelo.zip)
   end
@@ -347,7 +333,7 @@ flowchart TB
   subgraph sh[Tablero_IV.sh]
     s1(Explorador_Estab_ivs.qmd)
   end
-  Dir_In --> sh --> Dir_Out 
+  Dir_In --> sh --> Dir_Out
 ```
 
 
@@ -395,13 +381,13 @@ Los mismos scripts de la sección anterior se pueden ejecutar en el dockersrv me
 
 ### Sintaxis
 
-```         
+```
 ./Ejecutar_dockersrv.sh --remote_script <remote_script> --dir_in <dir_in> [--dir_out <dir_out>] [--help]
 ```
 
 ### Ejemplo
 
-```         
+```
 ./Ejecutar_dockersrv.sh --remote_script Modelar.sh --dir_in ./Entrada --dir_out ./Salida
 ```
 

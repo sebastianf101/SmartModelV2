@@ -1,0 +1,43 @@
+containers:
+  - name: sm-run-models2
+    image: ghcr.io/fedev23/bsm_with_az:1.0.1
+    imageType: ContainerImage
+    command: []
+    args:
+      - modelar
+      - --input-dir
+      - /data/datos_entrada_6879145f4281cbc08b6b51a6/proyecto_23_pNew/version_80_V5
+      - --output-dir
+      - /data/datos_salida_6879145f4281cbc08b6b51a6/proyecto_23_pNew/version_80_V5
+
+    env:
+      - name: BSM_USER
+        value: user
+      - name: BSM_VERSION
+        value: "10.3"
+      - name: BSM_DIR
+        value: /home/user/Documents/besmart/10.3
+      - name: BSM_IMAGE
+        value: bsm-studio
+      - name: BSM_RETRIES
+        value: "1"
+      - name: BSM_PWD
+        value: smartmodel
+      - name: BSM_CPU_CORES_MIN
+        value: "2"
+      - name: BSM_MEMORY_MIN
+        value: "4"
+
+      - name: AZURE_STORAGE_CONNECTION_STRING
+        secretRef: storage-conn
+        value: ""
+      - name: AZURE_STORAGE_CONTAINER_RESULTS
+        value: resultados-modelos
+
+    probes: []
+    resources:
+      cpu: 2
+      memory: 4Gi
+
+initContainers: null
+volumes: null

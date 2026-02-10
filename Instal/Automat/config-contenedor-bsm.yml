@@ -3,13 +3,12 @@ name: sm-cont-${BSM_NAME}
 services:
   studio:
     image: ${BSM_IMAGE}
-    ports:
-       - ${BSM_PORT}:8787
+     ports:
        - ${BSM_DASHBOARD_PORT}:3838
        - ${BSM_SSH_PORT}:22
     working_dir: ${BSM_DIR}
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8787 > /dev/null || exit 1"]
+      test: ["CMD-SHELL", "nc -z localhost 22"]
       interval: 5s
       timeout: 3s
       retries: 5

@@ -5,6 +5,7 @@ Test?Automat/Salida/
 Test?Automat/env_vars.sh
 Test?Automat/Salida.zip
 Test?Automat/*.out
+Artifacts/
 *.zip
 *.tar.gz
 *.ppk

@@ -11,16 +11,15 @@ show_help() {
     echo
     echo "Opciones:"
     echo "  --name NOMBRE      Nombre del contenedor (por defecto: \$BSM_NAME)"
-    echo "  --port PUERTO      Puerto principal del servicio (por defecto: \$BSM_PORT)"
+    echo "  --port PUERTO      (obsoleto) Puerto principal del servicio"
     echo "  --dashboard PUERTO Puerto para tableros interactivos (por defecto: \$BSM_DASHBOARD_PORT)"
     echo "  --ssh PUERTO       Puerto para acceso SSH al contenedor (por defecto: \$BSM_SSH_PORT)"
     echo "  --yml CONFIG       Perfil de docker-compose a usar (bsm|api) o ruta a un archivo .yml (por defecto: \$BSM_YML)"
     echo "  --help             Muestra esta ayuda"
     echo
     echo "Ejemplos:"
-    echo "  ./Levantar_Contenedor.sh --name Mi_SM --port 3000"
-    echo "  ./Levantar_Contenedor.sh --name Mi_SM --port 2999 --dashboard 3000 --yml api"
-    echo "  ./Levantar_Contenedor.sh --name Mi_SM --port 2999 --dashboard 3000 --ssh 2222 --yml api"
+    echo "  ./Levantar_Contenedor.sh --name Mi_SM --ssh 2222"
+    echo "  ./Levantar_Contenedor.sh --name Mi_SM --dashboard 3001 --yml api"
     echo
 }
 
@@ -60,10 +59,6 @@ export BSM_SSH_PORT=$BSM_SSH_PORT
 export BSM_YML=$BSM_YML
 
 # Check if the selected ports are free
-if ! is_port_free "$BSM_PORT"; then
-  echo "Puerto $BSM_PORT ocupado. Elegir otro!"
-  exit 1
-fi
 if ! is_port_free "$BSM_DASHBOARD_PORT"; then
   echo "Puerto $BSM_DASHBOARD_PORT ocupado. Elegir otro!"
   exit 1
@@ -75,7 +70,7 @@ fi
 
 echo "Nombre contenedor SM: $BSM_NAME"
 echo "Configuración YML: $BSM_YML"
-echo "Puerto SM: $BSM_PORT"
+echo "Puerto SM (obsoleto): $BSM_PORT"
 echo "Puerto para Tableros: $BSM_DASHBOARD_PORT"
 echo "Puerto para SSH: $BSM_SSH_PORT"
 echo

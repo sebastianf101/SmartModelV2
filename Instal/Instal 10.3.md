@@ -28,11 +28,9 @@ Con los comandos
 
 Levantamos o bajamos el contenedor.
 
-Podemos verificar que está subido abriendo con un browser localhost:2024 y logueandonos con el usuario user para entrar al Rstudio.
+Podemos verificar que está subido con el acceso al tablero en el puerto configurado (por defecto 3001) o por SSH (último recurso).
 
-Están disponibles también los usuarios user, user2, .., user5, usr_test, usr_test2, ..., usr_test5.
-
-No es necesario loguearse sin embargo. Podemos controlar todo el trabajo con estos dos scripts más el siguiente script.
+No es necesario loguearse. Podemos controlar todo el trabajo con estos dos scripts más el siguiente script.
 
 Tampoco el necesario bajar el contenedor por cada trabajo.
 
@@ -56,14 +54,14 @@ Notar que se pueden tener varias réplicas del contenedor corriendo simultaneame
 
 Estos comandos también aceptan los parámetros \[BSM_NAME\] \[BSM_PORT\] para sobreescribir las variables de entorno. Para bajar el servicio sólo basta el nombre sin prefijos del contenedor.
 
-```         
+```
 ./Levantar_Efimero [BSM_NAME] [BSM_PORT]
 ./Bajar_Efimero [BSM_NAME]
 ```
 
 Se pueden tener múltiples contenedores efímeros corriendo simultáneamente en background.
 
-De manera local se acceden con un browser en la dirección localhost:BSM_PORT. Cada instancia requiere un browser distinto sin embargo.
+De manera local se acceden con un browser en la dirección localhost:BSM_DASHBOARD_PORT.
 
 ### 5. Tejer Cuadernos
 
@@ -77,7 +75,7 @@ copiamos los archivos de Parámetros y Datos dentro del contenedor y tejemos/eje
 
 Al usar el flag -h o –help
 
-```         
+```
 Uso: ./Tejer_Cuadernos.sh Cuaderno Parametros Datos
   - Si se provee Datos se los copia a Data/.
   - Si se provee Parametros se los copia a Param/.

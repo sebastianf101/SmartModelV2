@@ -33,7 +33,7 @@ echo "Using compose files: ${COMPOSE_ARGS[*]}"
 echo "Variables assigned in the session"
 printenv | grep "BSM" | grep -v "BSM_PWD" || true
 
-echo "Starting ephemeral SM container ${BSM_CONTAINER} on localhost:${BSM_PORT}"
+echo "Starting ephemeral SM container ${BSM_CONTAINER} (SSH on localhost:${BSM_SSH_PORT})"
 docker compose "${COMPOSE_ARGS[@]}" up --remove-orphans --detach --wait --wait-timeout 30 || die
 
 docker exec --user "${BSM_USER}" --workdir "${BSM_DIR}" "$BSM_CONTAINER_SERVICE" \
