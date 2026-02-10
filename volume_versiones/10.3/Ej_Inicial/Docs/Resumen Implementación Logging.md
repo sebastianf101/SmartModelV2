@@ -75,11 +75,11 @@ Cambios:
 
 ```
 SmartModelV2/
-├── Instal/
-│   ├── Automat/
-│   │   └── config-contenedor-bsm.yml          [MODIFICADO]
+├── docker/
 │   ├── Init_users.sh                          [MODIFICADO]
 │   └── RProfile.site                          [Ya configura version_path y bsm_path]
+├── automation/
+│   └── config-contenedor-bsm.yml              [MODIFICADO]
 │
 └── volume_versiones/10.3/
     ├── Librerias/                             [Compartido READ-ONLY via version_path]

@@ -1,0 +1,98 @@
+---
+title: "Interfases SM"
+format:
+  html:
+    mermaid:
+      theme: neutral
+editor: visual
+---
+
+## Limpieza, Transformación y Modelado
+
+### General
+
+```{mermaid}
+flowchart TB
+  A(Parámetros) --> C[Cuadernos Limpieza, Transf. y Modelado]
+  B(Muestra Desarrollo) --> C
+  C --> D(Modelo)
+  C --> E(Reportes Limp,Tr y Mod.)
+  C --> F(Muestra Desarrollo con Scores)
+  subgraph Mod[Modelo]
+    direction TB
+    m1[Mod en SQL]
+    m2[Formatos y ids]
+    m3[Coef Mod]
+    m4[Binning Vars]
+    m5[Tabla Performance Desarrollo]
+  end
+  D --> Mod
+```
+
+### Detalle
+
+```{mermaid}
+flowchart TB
+  A(Parámetros <br> Control de SmartModelStudio.xlsx o json*) --> C[Cuadernos Limpieza, Transf. y Modelado <br> Clean-Transf_v10.qmd Modelling_v10.qmd]
+  B(Muestra Desarrollo <br> data_source_delim_path) --> C
+  C --> D(Modelo <br> Modelo.zip)
+  C --> E(Reportes Limp,Tr y Mod. <br> Clean-Transf_v10.html Modelling_v10.html)
+  C --> F(Muestra Desarrollo con Scores <br> DF_con_scores.Rdat)
+  subgraph Mod[Modelo.zip]
+    direction TB
+    m1[Mod en SQL <br> sent.sql]
+    m2[Formatos y ids <br> adic_data.rds]
+    m3[Coef Mod <br> Tab_Coef.Rdat]
+    m4[Binning Vars <br> VarsContDiscretizadas.Rdat VarsFactDiscretizadas.Rdat]
+    m5[Tabla Performance Desarrollo <br> tabPerfOrig.Rdat]
+  end
+  D --> Mod
+```
+
+## Validación en Desarrollo
+
+### General
+
+```{mermaid}
+flowchart TB
+  A(Parámetros) --> C[Cuaderno Validación]
+  B(Modelo) --> C
+  D(Muestra Desarrollo con Scores) --> C
+  C --> E(Reporte Validacion)
+```
+
+### Detalle
+
+```{mermaid}
+flowchart TB
+  A(Parámetros <br> Control de SmartModelStudio.xlsx o json*) --> C[Cuaderno Validacion <br> Validation_v10.qmd]
+  B(Modelo <br> Modelo.zip) --> C
+  D(Muestra Desarrollo con Scores <br> DF_con_scores.Rdat) --> C
+  C --> E(Reporte Validacion <br> Validation_v10.html)
+```
+
+## Validación en Nueva Muestra
+
+### General
+
+```{mermaid}
+flowchart TB
+  A(Parámetros) --> C[Cuaderno Validación Nueva Muestra]
+  B(Modelo) --> C
+  D(Nueva Muestra con target) --> C
+  C --> E(Reporte Validacion Nueva Muestra)
+  C --> F(Scores de Nueva Muestra)
+  C --> G(Estabilidad Variables)
+```
+
+### Detalle
+
+```{mermaid}
+flowchart TB
+  A(Parámetros <br> Control de SmartModelStudio.xlsx o json*) --> C[Cuaderno Validacion Nueva Muestra <br> Validation_OoS_v10.qmd]
+  B(Modelo <br> Modelo.zip) --> C
+  D(Nueva Muestra con target <br> data_source_val_delim_path) --> C
+  C --> E(Reporte Validacion <br> Validation_OoS_v10.html)
+  C --> F(Scores de Nueva Muestra <br> Scores_OoS.Rdat)
+  C --> G(Estabilidad Variables <br> Estabilidad_variables_OoS.Rdat)
+```
