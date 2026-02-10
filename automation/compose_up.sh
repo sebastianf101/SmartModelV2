@@ -29,6 +29,15 @@ esac
 export BSM_CONTAINER="sm-cont-${BSM_NAME}"
 export BSM_CONTAINER_SERVICE="sm-svc-${BSM_NAME}"
 
+# Pre-create log directory with correct ownership to avoid permission issues
+mkdir -p "${BSM_LOGS_HOST_DIR}"
+if [ "$(id -u)" -eq 0 ]; then
+  chown 1000:1000 "${BSM_LOGS_HOST_DIR}"
+else
+  # If not root, try to ensure it's writable by the current user
+  chmod 775 "${BSM_LOGS_HOST_DIR}" 2>/dev/null || true
+fi
+
 echo "Using compose files: ${COMPOSE_ARGS[*]}"
 echo "Variables assigned in the session"
 printenv | grep "BSM" | grep -v "BSM_PWD" || true
