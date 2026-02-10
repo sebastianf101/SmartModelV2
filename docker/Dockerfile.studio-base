@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libicu-dev libsecret-1-dev \
     libsodium-dev libssl-dev libxml2-dev lsof make pandoc unixodbc-dev xclip zlib1g-dev \
     libtbb-dev libglpk-dev libharfbuzz-dev libfribidi-dev \
+    libwebp-dev libpng-dev libjpeg-dev libtiff-dev \
     openssh-server openssh-client sudo curl tar locales iproute2 xz-utils \
     build-essential python3 python3-pip python3-venv gnupg lsb-release apt-transport-https \
     ca-certificates netcat-openbsd \
@@ -24,6 +25,14 @@ RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends azure-cli; \
     rm -rf /var/lib/apt/lists/*
+
+# Install Quarto CLI
+RUN QUARTO_VERSION="1.6.40" && \
+    curl -LO "https://github.com/quarto-dev/quarto-cli/releases/download/v${QUARTO_VERSION}/quarto-${QUARTO_VERSION}-linux-amd64.deb" && \
+    dpkg -i "quarto-${QUARTO_VERSION}-linux-amd64.deb" && \
+    rm "quarto-${QUARTO_VERSION}-linux-amd64.deb" && \
+    quarto check
+
 # locales para Argentina
 RUN sed -i '/es_AR.UTF-8/s/^# //g' /etc/locale.gen && \
     locale-gen es_AR.UTF-8
@@ -69,6 +78,7 @@ reticulate \
 rlang \
 rmarkdown \
 rsample \
+ragg \
 scales \
 shiny \
 shinyauthr \
