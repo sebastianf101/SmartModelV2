@@ -2,18 +2,18 @@ name: Docker Multi-Build
 
 on:
   repository_dispatch:
-    types: [base-image-released]  
+    types: [base-image-released]
   release:
-    types: [published]            
+    types: [published]
   push:
     tags:
-      - "*"  
-  workflow_dispatch:              
+      - "*"
+  workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ghcr.io/sferro-besmart/smartmodelv2
-  REPO_SOURCE_URL: https://github.com/sferro-besmart/SmartModelV2  
+  REPO_SOURCE_URL: https://github.com/sferro-besmart/SmartModelV2
   BASE_IMAGE_REPO: ghcr.io/sferro-besmart/my-rstudio
   BASE_GITHUB_REPO: sferro-besmart/my-rstudio
 
@@ -29,9 +29,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        
+
       - name: Install Cosign
-        if: github.event_name != 'pull_request'      
+        if: github.event_name != 'pull_request'
         uses: sigstore/cosign-installer@v3.8.1
         with:
           cosign-release: 'v2.4.3'
@@ -91,7 +91,7 @@ jobs:
           echo "🔹 BASE_IMAGE_REPO: ${{ env.BASE_IMAGE_REPO }}"
           echo "🔹 BASE_IMAGE_VERSION: ${{ env.BASE_IMAGE_VERSION }}"
           echo "🔹 REPO_SOURCE_URL: ${{ env.REPO_SOURCE_URL }}"
-          
+
       - name: Build and push final image (STUDIO)
         uses: docker/build-push-action@v5
         with:
@@ -115,4 +115,4 @@ jobs:
         run: |
           echo "Signing Docker image: ${FINAL_IMAGE}"
           cosign sign --yes ${FINAL_IMAGE}
-          
+

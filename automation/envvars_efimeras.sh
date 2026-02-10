@@ -1,6 +1,6 @@
 #!/bin/bash
 # Cambiar las variables de entorno sólo si se sabe que hacen
-# Ejecutar con source para que las variables tengan efecto durante toda la sesión. 
+# Ejecutar con source para que las variables tengan efecto durante toda la sesión.
 # source ./envvars_efimeras.sh
 
 # Define the range (MIN_PORT and MAX_PORT)
@@ -54,7 +54,7 @@ while [ ${#selected_ports[@]} -lt 2 ] && [ $attempts -lt $max_attempts ]; do
     selected_ports+=("$port")
     echo "Selected free port: $port"
   else
-    echo "Port $port is in use, skipping." 
+    echo "Port $port is in use, skipping."
   fi
   attempts=$((attempts + 1))
 done

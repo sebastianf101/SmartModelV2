@@ -1,7 +1,7 @@
 ## Ejecuta pipeline.
-## Espera que el PRIMER y único parámetro sea el nombre de la función bash 
-## que implementa el pipeline como secuencia de comandos docker. 
-## Incorpora lógica de reintentos.  Hasta 3 por defecto. 
+## Espera que el PRIMER y único parámetro sea el nombre de la función bash
+## que implementa el pipeline como secuencia de comandos docker.
+## Incorpora lógica de reintentos.  Hasta 3 por defecto.
 
 my_func=$1
 
@@ -23,7 +23,7 @@ fi
 # Retry logic
 for ((i=1; i<=retries; i++)); do
   echo "Intento $i de $retries de ejecución de Cuadernos"
-  ## Pipeline in first parameter. 
+  ## Pipeline in first parameter.
   $my_func
   if [ $? -eq 0 ]; then
     break

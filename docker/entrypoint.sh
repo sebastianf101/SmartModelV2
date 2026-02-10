@@ -9,13 +9,13 @@ chmod 0755 /var/run/sshd
 # If running as root, ensure correct ownership for user home and log directory
 if id user >/dev/null 2>&1; then
   chown -R user:consultores_ext /home/user 2>/dev/null || true
-  
+
   # Fix log directory permissions if BSM_LOG_DIR is set and exists
   if [ -n "${BSM_LOG_DIR:-}" ] && [ -d "${BSM_LOG_DIR}" ]; then
     chown -R user:consultores_ext "${BSM_LOG_DIR}"
     chmod -R u+rwX,g+rX "${BSM_LOG_DIR}"
   fi
-  
+
   ssh_dir="/home/user/.ssh"
   env_file="$ssh_dir/environment"
   mkdir -p "$ssh_dir"
