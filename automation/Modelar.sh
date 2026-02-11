@@ -109,8 +109,13 @@ cd $(dirname "$0")
 ####### Params y Vars ---------------------------------------
 
 # Parece que a veces fallan los cuadernos porque no consigue alocar suficientes recursos.
-# En ese caso editar las variables *_MIN en envvars_defaults.sh.
-source ./envvars_defaults.sh
+# En ese caso editar las variables *_MIN en .env.
+ENV_FILE="${ENV_FILE:-../.env}"
+if [ -f "$ENV_FILE" ]; then
+  set -a
+  source "$ENV_FILE"
+  set +a
+fi
 source ./envvars_sesion.sh
 
 ####### Levantar Contenedor Efímero  ------------------------------------

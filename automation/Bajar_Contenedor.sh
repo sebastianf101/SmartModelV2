@@ -2,7 +2,12 @@
 ##!/bin/bash
 
 # Default values.
-source ./envvars_defaults.sh
+ENV_FILE="${ENV_FILE:-../.env}"
+if [ -f "$ENV_FILE" ]; then
+    set -a
+    source "$ENV_FILE"
+    set +a
+fi
 
 # Override with command line arguments if provided
 if [[ "$1" != "--help" ]]; then
