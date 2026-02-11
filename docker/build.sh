@@ -11,6 +11,13 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_ROOT"
 echo "Directorio de trabajo: $(pwd)"
 
+ENV_FILE="${ENV_FILE:-.env}"
+if [ -f "$ENV_FILE" ]; then
+    set -a
+    source "$ENV_FILE"
+    set +a
+fi
+
 # Function to check and prompt for env var
 check_and_set_env_var() {
     local var_name=$1
@@ -35,7 +42,11 @@ docker build -t bsm-studio-paq -f docker/Dockerfile.base . #--no-cache
 docker tag bsm-studio-paq sebastianf101/bsm-studio-paq
 echo "Fin de construcción de imagen bsm-studio-paq"
 echo "Inicio construcción de imagen bsm-studio"
-docker build -t bsm-studio -f docker/Dockerfile.config --progress=plain . #--no-cache
+docker build -t bsm-studio -f docker/Dockerfile.config --progress=plain \
+    --build-arg BSM_VERSION="${BSM_VERSION:-10.3}" \
+    --build-arg BSM_USER="${BSM_USER:-user}" \
+    --build-arg BSM_DIR="${BSM_DIR:-/home/user/Documents/besmart/10.3}" \
+    . #--no-cache
 echo "Fin de construcción de imagen bsm-studio"
 echo "Inicio subida a docker Hub de imagen sebastianf101/bsm-studio:$IMAGE_VERSION"
 echo $DOCKER_PWD | docker login -u "sebastianf101" --password-stdin docker.io

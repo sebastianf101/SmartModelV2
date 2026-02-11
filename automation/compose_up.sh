@@ -32,6 +32,11 @@ case "$MODE" in
     echo "Unknown argument: $MODE"; die ;;
 esac
 
+expected_bsm_dir="/home/${BSM_USER}/Documents/besmart/${BSM_VERSION}"
+if [ -n "${BSM_DIR:-}" ] && [ "${BSM_DIR}" != "$expected_bsm_dir" ]; then
+  echo "BSM_DIR mismatch: expected ${expected_bsm_dir}, got ${BSM_DIR}"; die
+fi
+
 # The container has prefix sm-cont-
 export BSM_CONTAINER="sm-cont-${BSM_NAME}"
 export BSM_CONTAINER_SERVICE="sm-svc-${BSM_NAME}"
