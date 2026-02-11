@@ -24,4 +24,4 @@ Esta configuración del Dev Container busca reflejar el contenedor de producció
 
 #### Variables de entorno
 
-Compose carga variables desde `.devcontainer/.env` porque el compose de dev se lista primero (haciendo `.devcontainer` el project directory). Para cambiar puertos o defaults, editar ese archivo y reconstruir el contenedor.
+Compose carga variables desde `../.env` (ver `.devcontainer/docker-compose.dev.yml`). Para cambiar puertos o defaults, editar ese archivo y reconstruir el contenedor.
