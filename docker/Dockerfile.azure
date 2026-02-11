@@ -14,7 +14,7 @@ RUN chmod +x /usr/local/bin/modelar.sh && \
     chmod +x /usr/local/bin/scoring.sh && \
     chmod +x /usr/local/bin/valid_and_upload_to_blob.sh
 
-RUN chown user:consultores_ext /usr/local/bin/modelar.sh \
+RUN chown user:consultores /usr/local/bin/modelar.sh \
                                /usr/local/bin/validar_desa.sh \
                                /usr/local/bin/entrypoint.sh \
                                /usr/local/bin/validar_nueva.sh \
