@@ -12,7 +12,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ghcr.io/SmartModelling/smartmodelv2
+  IMAGE_NAME: ghcr.io/smartmodelling/smartmodelv2
   REPO_SOURCE_URL: https://github.com/SmartModelling/SmartModelV2
   BASE_IMAGE_REPO: ghcr.io/sferro-besmart/my-rstudio
   BASE_GITHUB_REPO: sferro-besmart/my-rstudio

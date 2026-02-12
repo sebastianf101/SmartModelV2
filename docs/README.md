@@ -39,7 +39,7 @@ Compose carga variables desde `../.env` (ver `.devcontainer/docker-compose.dev.y
 This repository publishes container images to GitHub Container Registry.
 
 Defaults:
-- Image: `ghcr.io/SmartModelling/smartmodelv2`
+- Image: `ghcr.io/smartmodelling/smartmodelv2`
 - Dockerfile: `docker/Dockerfile.config`
 - Tag format: `vMAJOR.MINOR.PATCH` (also pushed as `latest`)
 

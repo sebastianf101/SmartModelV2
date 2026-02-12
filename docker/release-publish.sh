@@ -5,7 +5,7 @@ set -euo pipefail
 
 REPO_DEFAULT="SmartModelling/SmartModelV2"
 REGISTRY_DEFAULT="ghcr.io"
-OWNER_DEFAULT="SmartModelling"
+OWNER_DEFAULT="smartmodelling"
 IMAGE_DEFAULT="smartmodelv2"
 DOCKERFILE_DEFAULT="docker/Dockerfile.config"
 REMOTE_DEFAULT="origin"
