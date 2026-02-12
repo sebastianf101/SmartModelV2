@@ -10,6 +10,10 @@ IMAGE_DEFAULT="smartmodelv2"
 DOCKERFILE_DEFAULT="docker/Dockerfile.config"
 REMOTE_DEFAULT="origin"
 
+# Resolve repository root so script can be run from any cwd
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
 print() { printf "%s\n" "$*"; }
 err()  { printf "ERROR: %s\n" "$*" >&2; exit 1; }
 info() { printf "ℹ %s\n" "$*"; }
@@ -105,8 +109,10 @@ if git rev-parse "$TAG" >/dev/null 2>&1; then err "Tag $TAG already exists."; fi
 
 info "Preparing release $TAG -> $FULL_IMAGE"
 info "Dockerfile: $DOCKERFILE"
+info "Project root: $PROJECT_ROOT"
 
-run "docker build -f '$DOCKERFILE' -t '$FULL_IMAGE' ."
+# build using repository root as the context so script works from any cwd
+run "docker build -f '$PROJECT_ROOT/$DOCKERFILE' -t '$FULL_IMAGE' '$PROJECT_ROOT'"
 run "docker tag '$FULL_IMAGE' '$LATEST_IMAGE'"
 
 if [ "$DO_PUSH" = true ]; then
