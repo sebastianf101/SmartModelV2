@@ -1,4 +1,0 @@
-#!/usr/bin/with-contenv bash
-set -e
-mkdir -p /var/run/sshd
-chmod 0755 /var/run/sshd

@@ -1427,29 +1427,169 @@ graph_min_sizes <- function(bin_factor_res) {
 # - Interactive mode (IDE): Uses stats::add1 by default (Rfast2 causes crashes)
 # - Override: Set USE_RFAST2="FALSE" to disable, or "TRUE" to force enable
 
-# Progress JSON writer for external monitoring (e.g., container dashboards)
-write_progress_json <- function(progress_ratio, current_step, time_elapsed, time_remaining) {
+# =============================================================================
+# Progress tracking system for external monitoring (e.g., web UI dashboards)
+# =============================================================================
+#
+# Formula:  progress = alpha * (completed_chunks / total_chunks)
+#                     + (1 - alpha) * H
+#
+# where H = weighted average of heavy-task progress values (each in [0,1]).
+#
+# Per-notebook config (alpha, heavy tasks) is looked up by notebook name in
+# setup_chunk_tracking().  For notebooks without heavy tasks, alpha = 1 and
+# progress degrades to simple chunk counting.
+# =============================================================================
+
+# Module-level state for chunk + task progress tracking
+bsm_progress <- new.env(parent = emptyenv())
+bsm_progress$chunk_counter  <- 0L       # incremented on each chunk entry
+bsm_progress$total_chunks   <- 0L       # set once by setup_chunk_tracking()
+bsm_progress$current_label  <- ""       # label of currently executing chunk
+bsm_progress$start_time     <- NULL     # Sys.time() when tracking began
+bsm_progress$alpha          <- 1.0      # weight for chunk-ratio component
+bsm_progress$heavy_tasks_config <- list()   # named list: task_name -> weight
+bsm_progress$heavy_tasks_state  <- list()   # named list: task_name -> progress [0,1]
+
+# Per-notebook default configuration lookup table.
+# Edit this table to tune alpha and heavy-task weights based on historical runs.
+.bsm_notebook_progress_config <- list(
+  "Clean-Transf.qmd" = list(
+    alpha = 0.45,
+    heavy_tasks = list(Binning_Cont = 0.7, Binning_Fact = 0.3)
+  ),
+  "Modelling.qmd" = list(
+    alpha = 0.40,
+    heavy_tasks = list(ForwardK = 1.0)
+  )
+  # Notebooks not listed here get alpha = 1, no heavy tasks (pure chunk counting)
+)
+
+#' Initialise chunk-level progress tracking.
+#' Call once per notebook render (typically from Carga Parametros.R).
+#' Safe to call outside knitr context (no-op).
+setup_chunk_tracking <- function() {
+  if (!isTRUE(getOption("knitr.in.progress"))) return(invisible(NULL))
+
+  # Discover total chunks and record start time
+  all_labels <- knitr::all_labels()
+  bsm_progress$total_chunks  <- length(all_labels)
+  bsm_progress$chunk_counter <- 1L      # we are inside the first chunk already
+  bsm_progress$current_label <- all_labels[1]
+  bsm_progress$start_time    <- Sys.time()
+
+  # Load per-notebook config
+  nb <- bsm_logger$current_notebook %||% "-"
+  cfg <- .bsm_notebook_progress_config[[nb]]
+  if (!is.null(cfg)) {
+    bsm_progress$alpha <- cfg$alpha
+    bsm_progress$heavy_tasks_config <- cfg$heavy_tasks
+    # Initialise every heavy task to 0
+    bsm_progress$heavy_tasks_state <- setNames(
+      as.list(rep(0, length(cfg$heavy_tasks))),
+      names(cfg$heavy_tasks)
+    )
+  } else {
+    bsm_progress$alpha <- 1.0
+    bsm_progress$heavy_tasks_config <- list()
+    bsm_progress$heavy_tasks_state  <- list()
+  }
+
+  # Register a knitr chunk hook that fires for every subsequent chunk
+  knitr::knit_hooks$set(bsm_chunk_progress = function(before, options, envir) {
+    if (before) {
+      # Entering a new chunk (first chunk was already counted above)
+      bsm_progress$chunk_counter <- bsm_progress$chunk_counter + 1L
+      bsm_progress$current_label <- options$label %||% ""
+      write_progress_json()  # update at chunk boundary
+    }
+    return(NULL)  # no document output
+  })
+  knitr::opts_chunk$set(bsm_chunk_progress = TRUE)
+
+  # Emit initial progress for chunk 1
+  write_progress_json()
+  log_info(paste0("Progress tracking initialised: ", bsm_progress$total_chunks,
+                  " chunks, alpha=", bsm_progress$alpha))
+  invisible(NULL)
+}
+
+#' Compute overall notebook progress from chunk ratio + heavy-task progress.
+.compute_progress <- function() {
+  N     <- bsm_progress$total_chunks
+  if (N == 0) return(0)
+
+  alpha <- bsm_progress$alpha
+  C     <- max(bsm_progress$chunk_counter - 1L, 0L)  # completed chunks
+  chunk_ratio <- min(C / N, 1)
+
+  # Weighted average of heavy-task progress values
+  cfg <- bsm_progress$heavy_tasks_config
+  if (length(cfg) > 0) {
+    weights  <- unlist(cfg)
+    states   <- unlist(bsm_progress$heavy_tasks_state[names(cfg)])
+    H <- sum(weights * states) / sum(weights)
+  } else {
+    H <- 0
+  }
+
+  progress <- alpha * chunk_ratio + (1 - alpha) * H
+  return(min(progress, 1))
+}
+
+#' Write progress to JSON for external monitoring.
+#'
+#' @param task       (string|NULL) Name of the heavy task currently running,
+#'                   e.g. "Binning_Cont", "Binning_Fact", "ForwardK".
+#' @param task_progress (numeric|NULL) Progress within the heavy task [0,1].
+#' @param task_detail   (string|NULL) Human-readable detail, e.g. "Variable 5 of 28".
+write_progress_json <- function(task = NULL, task_progress = NULL, task_detail = NULL) {
   json_path <- Sys.getenv("PROGRESS_JSON_PATH", "")
   if (json_path == "") return(invisible(NULL))
 
+  # Update heavy-task state if a task is being reported
+  if (!is.null(task) && !is.null(task_progress)) {
+    bsm_progress$heavy_tasks_state[[task]] <- task_progress
+  }
+
+  # Compute overall progress
+  overall <- .compute_progress()
+
+  # Timing
+  if (!is.null(bsm_progress$start_time)) {
+    elapsed <- as.numeric(difftime(Sys.time(), bsm_progress$start_time, units = "secs"))
+    if (overall > 0.01) {
+      remaining <- elapsed * (1 - overall) / overall
+    } else {
+      remaining <- -1  # unknown
+    }
+  } else {
+    elapsed   <- 0
+    remaining <- -1
+  }
+
   progress_data <- list(
-    session_id = log_get_session_id(),
-    progress = progress_ratio,
-    current_step = current_step,
-    time_elapsed = time_elapsed,
-    time_remaining = time_remaining,
-    timestamp = format(Sys.time(), "%Y-%m-%d %H:%M:%OS3"),
-    notebook = bsm_logger$current_notebook %||% "-"
+    session_id     = log_get_session_id(),
+    notebook       = bsm_logger$current_notebook %||% "-",
+    chunk_current  = bsm_progress$chunk_counter,
+    chunk_total    = bsm_progress$total_chunks,
+    chunk_label    = bsm_progress$current_label,
+    progress       = round(overall, 4),
+    task           = task,
+    task_progress  = if (!is.null(task_progress)) round(task_progress, 4) else NULL,
+    task_detail    = task_detail,
+    time_elapsed   = round(elapsed, 2),
+    time_remaining = round(remaining, 2),
+    timestamp      = format(Sys.time(), "%Y-%m-%d %H:%M:%OS3")
   )
 
   tmp_path <- paste0(json_path, ".tmp")
   tryCatch({
-    jsonlite::write_json(progress_data, tmp_path, auto_unbox = TRUE, pretty = TRUE)
+    jsonlite::write_json(progress_data, tmp_path, auto_unbox = TRUE, pretty = TRUE, null = "null")
     file.rename(tmp_path, json_path)
-    # Use paste to avoid cli interpolation issues
-    log_trace(paste0("Progress updated: ", round(progress_ratio * 100, 1), "% - Step ", current_step))
+    log_trace(paste0("Progress updated: ", round(overall * 100, 1), "%",
+                     if (!is.null(task)) paste0(" [", task, "]") else ""))
   }, error = function(e) {
-    # Avoid cli interpolation of error message by using paste
     log_warn(paste("Failed to write progress.json:", e$message))
   })
 }
@@ -1743,8 +1883,8 @@ logit.fwd <- function(train, target, verbose = FALSE) {
   res.step <- logit.step(train2, target, verbose = verbose)
 
   # Progress update
-  elapsed <- as.numeric(difftime(Sys.time(), start_time, units = "secs"))
-  write_progress_json(0.1, idx_outer, elapsed, -1)
+  write_progress_json(task = "ForwardK", task_progress = 0.1,
+                      task_detail = paste("Adjustment", idx_outer, "completed"))
 
   if (is.null(res.step$vars.fwd.res) || nrow(res.step$vars.fwd.res) == 0) {
     error_custom(
@@ -1776,9 +1916,9 @@ logit.fwd <- function(train, target, verbose = FALSE) {
     idx_outer <- idx_outer + 1
 
     # Progress update
-    elapsed <- as.numeric(difftime(Sys.time(), start_time, units = "secs"))
     ratio <- min(idx_outer / 15, 0.99)
-    write_progress_json(ratio, idx_outer, elapsed, -1)
+    write_progress_json(task = "ForwardK", task_progress = ratio,
+                        task_detail = paste("Adjustment", idx_outer, "completed"))
 
     coef.steps <- bind_rows(coef.steps, res.step$coef.steps |> mutate(Ajuste = idx_outer))
 
@@ -1798,8 +1938,8 @@ logit.fwd <- function(train, target, verbose = FALSE) {
   }
 
   # Final progress
-  elapsed <- as.numeric(difftime(Sys.time(), start_time, units = "secs"))
-  write_progress_json(1.0, idx_outer, elapsed, 0)
+  write_progress_json(task = "ForwardK", task_progress = 1.0,
+                      task_detail = paste("Complete after", idx_outer, "adjustments"))
 
   return(list(
     vars.excl = vars.excl,

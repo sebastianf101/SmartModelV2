@@ -1,0 +1,3 @@
+*.out
+*.ppk
+env_vars.sh

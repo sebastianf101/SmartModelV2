@@ -1,0 +1,25 @@
+FROM bsm-studio:latest
+
+COPY automation/azure/Modelar.sh /usr/local/bin/modelar.sh
+COPY automation/azure/Validar_Desa.sh /usr/local/bin/validar_desa.sh
+COPY automation/azure/entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY automation/azure/Validar_Nueva.sh /usr/local/bin/validar_nueva.sh
+COPY automation/azure/Scoring.sh /usr/local/bin/scoring.sh
+COPY automation/azure/valid_and_upload_to_blob.sh /usr/local/bin/valid_and_upload_to_blob.sh
+
+RUN chmod +x /usr/local/bin/modelar.sh && \
+    chmod +x /usr/local/bin/validar_desa.sh && \
+    chmod +x /usr/local/bin/entrypoint.sh && \
+    chmod +x /usr/local/bin/validar_nueva.sh && \
+    chmod +x /usr/local/bin/scoring.sh && \
+    chmod +x /usr/local/bin/valid_and_upload_to_blob.sh
+
+RUN chown user:consultores /usr/local/bin/modelar.sh \
+                               /usr/local/bin/validar_desa.sh \
+                               /usr/local/bin/entrypoint.sh \
+                               /usr/local/bin/validar_nueva.sh \
+                               /usr/local/bin/scoring.sh \
+                               /usr/local/bin/valid_and_upload_to_blob.sh
+USER user
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
