@@ -292,13 +292,13 @@ df.scores |>
 #### Perfomance All
 
 ```{r RepModFwdValTestPrint}
-repKS(tab.all, caption="Validación Modelo Logístico en All", totales = T)
+repKS(tab.all, caption="Validación Modelo Logístico en All", totales = TRUE)
 ```
 
 #### Perfomance Train
 
 ```{r PerformanceTrain}
-repKS(tab.train, caption="Validación Modelo Logístico en Train", totales = T)
+repKS(tab.train, caption="Validación Modelo Logístico en Train", totales = TRUE)
 ```
 
 #### Perfomance Test
@@ -306,7 +306,7 @@ repKS(tab.train, caption="Validación Modelo Logístico en Train", totales = T)
 ```{r PerformanceTest}
 if (par_split > 1) {
   repKS(tab.test, caption="Validación Modelo Logístico en Test In-Sample", totales = T)
-} else repKS(tab.test, caption="Validación Modelo Logístico en Test In-Sample", totales = T)
+} else repKS(tab.test, caption="Validación Modelo Logístico en Test In-Sample", totales = TRUE)
 ```
 
 ```{r PerformanceValidTitle}
@@ -317,7 +317,7 @@ if (par_split > 1)
 
 ```{r PerformanceValidTable}
 if (par_split > 1)
-  repKS(tab.valid, caption="Validación Modelo Logístico en Valid In-Sample", totales = T)
+  repKS(tab.valid, caption="Validación Modelo Logístico en Valid In-Sample", totales = TRUE)
 ```
 
 ```{r Estab_Vars_Mod}
@@ -383,7 +383,7 @@ tab |>
 ### Performance SQL
 
 ```{r reportes_dev_noyc}
-repKS(tab_all_sql, caption="Validación muestra de desarrollo en SQL", totales = T)
+repKS(tab_all_sql, caption="Validación muestra de desarrollo en SQL", totales = TRUE)
 ```
 
 ## Niveles de Riesgo por Cuantiles

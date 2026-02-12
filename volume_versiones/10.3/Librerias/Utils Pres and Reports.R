@@ -13,21 +13,21 @@
 # res <- medidasxPersyMods(Data, modelos, periodos)
 medidasxPeryMod <- function(data, modelo, train_per, periodo, valid=NA, msrs=measures) {
   if (is.na(valid)) {
-    data <- data %>% filter(Modelo == modelo, Periodo == periodo) %>%
-      filter(!is.na(response)) %>% select(truth, prob.Bad, prob.Good, response) %>%
+    data <- data |> dplyr::filter(Modelo == modelo, Periodo == periodo) |> 
+      dplyr::filter(!is.na(response)) |> dplyr::select(truth, prob.Bad, prob.Good, response) |> 
       as.data.frame()
     Per_pred <- diff_months(train_per, periodo)
   }
   else if (valid==0) {
-    data <- data %>% filter(Modelo == modelo, Per_Pred == 0) %>%
-      filter(!is.na(response)) %>% select(truth, prob.Bad, prob.Good, response) %>%
+    data <- data |> dplyr::filter(Modelo == modelo, Per_Pred == 0) |> 
+      dplyr::filter(!is.na(response)) |> dplyr::select(truth, prob.Bad, prob.Good, response) |> 
       as.data.frame()
     Per_pred <- 0
   }
   else {
     # asumo valid = 1
-    data <- data %>% filter(Modelo == modelo, Per_Pred == 0.5) %>%
-      filter(!is.na(response)) %>% select(truth, prob.Bad, prob.Good, response) %>%
+    data <- data |> dplyr::filter(Modelo == modelo, Per_Pred == 0.5) |> 
+      dplyr::filter(!is.na(response)) |> dplyr::select(truth, prob.Bad, prob.Good, response) |> 
       as.data.frame()
     Per_pred <- 0.5
   }
@@ -221,7 +221,7 @@ sum_table_1_gt <- function(tab) {
     cols_label(PercW=gt::html("% W")) |>
     cols_move(columns = PercQ, after = Q) |>
     cols_move(columns = PercW, after = W) |>
-    grand_summary_rows(columns = c(Q,W), fns = list(`Total`=~sum(., na.rm = T)),
+    grand_summary_rows(columns = c(Q,W), fns = list(`Total` = ~sum(., na.rm = TRUE)),
                        fmt = ~ fmt_number(., decimals = 0, sep_mark = '')) %>%
     opt_row_striping()
   return(tab_gt)
@@ -234,41 +234,101 @@ sum_table_1_gt <- function(tab) {
 sum_table_2_gt <- function(tab) {
   ult_group_col <- tab |> group_vars() |> tail(1)
   other_group_cols <- tab |> group_vars() |> head(-1)
+  first_group_col <- tab |> group_vars() |> head(1)
+
   other_group_cols |> internal_vars_labels() -> subtitle
   stringr::str_c('x ', "**", stringr::str_c(subtitle, collapse = ' y '), "**") -> subtitle
-  #if (other_group_cols==".part")
-  tab_gt <- tab |>
-    summarise(Q=n(), W=sum(.weight)) |>
-    mutate(PercQ=Q/sum(Q)) |>
-    mutate(PercW=W/sum(W)) |>
-    gt(rowname_col = ult_group_col,
+
+  # Summarise once and compute both subgroup (within-group) percentages and
+  # per-group (wrt grand total) summary rows inserted as explicit rows.
+  df_sum <- tab |>
+    dplyr::summarise(Q = dplyr::n(), W = sum(.weight)) |>
+    dplyr::ungroup()
+
+  # Grand totals
+  grand_Q <- sum(df_sum$Q)
+  grand_W <- sum(df_sum$W)
+
+  # Compute group totals and subgroup percentages (within group)
+  df_sum <- df_sum |>
+    dplyr::group_by(dplyr::across(dplyr::all_of(first_group_col))) |>
+    dplyr::mutate(GroupQ = sum(.data$Q), GroupW = sum(.data$W)) |>
+    dplyr::ungroup() |>
+    dplyr::mutate(
+      PercQ = .data$Q / .data$GroupQ,    # subgroup % (within group)
+      PercW = .data$W / .data$GroupW
+    )
+
+  # Levels for the first grouping variable (to add per-group totals)
+  first_group_levels <- df_sum |>
+    dplyr::pull(dplyr::all_of(first_group_col)) |>
+    unique() |>
+    as.character()
+
+  # Build explicit group-summary rows (unlabeled stub) that show group totals
+  group_summaries <- df_sum |>
+    dplyr::select(dplyr::all_of(first_group_col)) |>
+    dplyr::distinct() |>
+    dplyr::left_join(
+      df_sum |>
+        dplyr::group_by(dplyr::across(dplyr::all_of(first_group_col))) |>
+        dplyr::summarise(GroupQ = sum(.data$Q), GroupW = sum(.data$W)),
+      by = first_group_col
+    ) |>
+    dplyr::mutate(
+      !!ult_group_col := "\u00A0",
+      Q = .data$GroupQ,
+      W = .data$GroupW,
+      PercQ = .data$GroupQ / grand_Q,   # percent wrt Grand Total
+      PercW = .data$GroupW / grand_W
+    ) |>
+    dplyr::select(dplyr::all_of(c(first_group_col, ult_group_col, "Q", "W", "PercQ", "PercW")))
+
+  # Combine sub-rows and summary rows, ordering so summary is last within group
+  df_out <- df_sum |>
+    dplyr::mutate(!!ult_group_col := as.character(.data[[ult_group_col]])) |>
+    dplyr::select(dplyr::all_of(c(first_group_col, ult_group_col, "Q", "W", "PercQ", "PercW"))) |>
+    dplyr::bind_rows(group_summaries) |>
+    dplyr::group_by(dplyr::across(dplyr::all_of(first_group_col))) |>
+    dplyr::mutate(.ord = dplyr::row_number()) |>
+    dplyr::arrange(dplyr::across(dplyr::all_of(first_group_col)), .ord) |>
+    dplyr::ungroup() |>
+    dplyr::select(-.ord)
+
+  tab_gt <- df_out |>
+    gt::gt(rowname_col = ult_group_col,
        groupname_col = other_group_cols,
        locale = 'es-AR') |>
-    tab_header(title=stringr::str_c('Distribucion de ',ult_group_col),
-               subtitle = md(subtitle)) |>
-    tab_stubhead(label = ult_group_col) |>
-    sub_missing(columns = everything()) |>
-    fmt_number(columns = 'Q', decimals = 0) |>
-    fmt_number(columns = 'W', decimals = 1) |>
-    fmt_percent(columns = c(PercQ, PercW), decimals = 1) |>
-    cols_align(align = 'right', columns = c(Q, W, PercQ, PercW)) |>
-    tab_style(style = cell_text(align = 'right'), locations = cells_stub()) |>
-    cols_align(align = 'center', columns = ult_group_col) |>
-    cols_label(PercQ=gt::html("% Q")) |>
-    cols_label(PercW=gt::html("% W")) |>
-    cols_move(columns = PercQ, after = Q) |>
-    cols_move(columns = PercW, after = W) |>
-    summary_rows(groups = T, columns = c(Q), fns = list(Total=~sum(., na.rm = T)),
-                 fmt = ~ fmt_number(., decimals = 0, sep_mark = '')) |>
-    summary_rows(groups = T, columns = c(W), fns = list(Total=~sum(., na.rm = T)),
-                 fmt = ~ fmt_number(., decimals = 1, sep_mark = '')) |>
-    summary_rows(groups = T, columns = c(PercQ, PercW), fns = list(Total=~sum(., na.rm = T)),
-                 fmt = ~ fmt_number(., decimals = 1, sep_mark = '')) |>
-    grand_summary_rows(columns = Q, fns = list(`Gran Total`=~sum(., na.rm = T)),
-                       fmt = ~ fmt_number(., decimals = 0, sep_mark = '')) |>
-    grand_summary_rows(columns = W, fns = list(`Gran Total`=~sum(., na.rm = T)),
-                       fmt = ~ fmt_number(., decimals = 0, sep_mark = '')) |>
-    opt_row_striping()
+    gt::tab_header(title = stringr::str_c('Distribucion de ',ult_group_col),
+               subtitle = gt::md(subtitle)) |>
+    gt::tab_stubhead(label = ult_group_col) |>
+    gt::sub_missing(columns = everything()) |>
+    gt::fmt_number(columns = 'Q', decimals = 0) |>
+    gt::fmt_number(columns = 'W', decimals = 1) |>
+    gt::fmt_percent(columns = c(PercQ, PercW), decimals = 1) |>
+    gt::cols_align(align = 'right', columns = c(Q, W, PercQ, PercW)) |>
+    gt::tab_style(style = gt::cell_text(align = 'right'), locations = gt::cells_stub()) |>
+    gt::cols_align(align = 'center', columns = ult_group_col) |>
+    gt::cols_label(PercQ=gt::html("% Q")) |>
+    gt::cols_label(PercW=gt::html("% W")) |>
+    gt::cols_move(columns = PercQ, after = Q) |>
+    gt::cols_move(columns = PercW, after = W) |>
+    # Summary rows for the inner groups (existing behaviour)
+    gt::summary_rows(groups = TRUE, columns = c(Q), fns = list(Total = ~sum(., na.rm = TRUE)),
+                 fmt = ~ gt::fmt_number(., decimals = 0, sep_mark = '')) |>
+    gt::summary_rows(groups = TRUE, columns = c(W), fns = list(Total = ~sum(., na.rm = TRUE)),
+                 fmt = ~ gt::fmt_number(., decimals = 1, sep_mark = ''))
+
+  tab_gt <- tab_gt |>
+    # Use precomputed grand totals so we don't double-count explicit per-group summary rows
+    # Use function closures to capture the grand totals' values so they remain available
+    # at render time (formulas can evaluate in a different environment and fail).
+    gt::grand_summary_rows(columns = Q, fns = list(`Gran Total` = rlang::new_formula(NULL, grand_Q)),
+                       fmt = ~ gt::fmt_number(., decimals = 0, sep_mark = '')) |>
+    gt::grand_summary_rows(columns = W, fns = list(`Gran Total` = rlang::new_formula(NULL, grand_W)),
+                       fmt = ~ gt::fmt_number(., decimals = 0, sep_mark = '')) |>
+    gt::opt_row_striping()
+
   return(tab_gt)
 }
 
@@ -360,7 +420,7 @@ gentTab_B <- function(df, par_times = 2000, par_quantiles = c(0.025, 0.5, 0.975)
   tab_bt_sum %>%
     tidyr::pivot_wider(id_cols = c(Segmento, score_niv, Alineado_B),
                 names_from = B_Cuantil, values_from = c(Tasa_Malos_B, KS_B)) -> tab_bt_sum
-  tab %>% inner_join(tab_bt_sum, by=c(group_vars, "score_niv")) -> res
+  res <- tab %>% inner_join(tab_bt_sum, by = c(group_vars, "score_niv"))
   return(res)
 }
 
@@ -673,9 +733,9 @@ det_iv_cont_gt <- function(ivt, title) {
                suffixing = T, drop_trailing_zeros = T) |>
     fmt_number(c('cut_lo', 'cut_median', 'cut_hi'), n_sigfig = 3,
                suffixing = T, drop_trailing_zeros = T) |>
-    fmt_number(c('WoE', 'woe_est_lo', 'woe_est_hi'), n_sigfig = 3, suffixing = T,
-               drop_trailing_zeros = T) |>
-    fmt_number(c('IV'), n_sigfig = 2, suffixing = T, drop_trailing_zeros = T) |>
+    fmt_number(c('WoE', 'woe_est_lo', 'woe_est_hi'), n_sigfig = 3, suffixing = TRUE,
+               drop_trailing_zeros = TRUE) |>
+    fmt_number(c('IV'), n_sigfig = 2, suffixing = TRUE, drop_trailing_zeros = TRUE) |>
     fmt_percent(c('PctRec', 'PctGood', 'PctBad', 'BadRate'), decimals = 1, scale = F) |>
     cols_label(col_agrup = 'Rango', bin_woe='Rango (WoE)',  woe_est_lo='Min (WoE)', woe_est_hi='Max (WoE)',
                cut_lo = 'Min', cut_median = 'Mediana', cut_hi = 'Max',
@@ -1229,9 +1289,9 @@ iv_x_grupos <- function(df, tipo, col, col_agrup, woes_tab, woe_nulos, sentido,
       assertthat::assert_that(is.monotone(woes_tab)$res)
       asc <- is.monotone(woes_tab)$incr
       #print(paste("Tipo Continua Grupo", v, "col", col, "col_agrup", col_agrup, "woes_tab", woes_tab))
-      df |> filter(.data[[var_grupo]]==v) |>
-        mutate(Good=as.integer(as.character(Good))) |>
-        group_2_ivtab_cont(col, col_agrup, woes_breaks = woes_tab, woe_nulos, sentido) -> res
+      res <- df |> filter(.data[[var_grupo]] == v) |>
+        mutate(Good = as.integer(as.character(Good))) |>
+        group_2_ivtab_cont(col, col_agrup, woes_breaks = woes_tab, woe_nulos, sentido)
 
       if (res$error) {
         res$error_detalle <- cli::format_error(c("Hubo un error en el calculo del IV x grupos",
@@ -1241,7 +1301,7 @@ iv_x_grupos <- function(df, tipo, col, col_agrup, woes_tab, woe_nulos, sentido,
         iv_tot <- iv_tot |>
           mutate(error = TRUE, error_detail = res$error_detalle)
       } else {
-        res |> pluck('tab') -> iv
+        iv <- res |> pluck('tab')
 
         iv_tot <- iv_tot |>
           bind_cols(
@@ -1256,17 +1316,17 @@ iv_x_grupos <- function(df, tipo, col, col_agrup, woes_tab, woe_nulos, sentido,
     }
     else if (tipo=='Factor') {
       # A diferencias de la versión Continua siempre agrupamos por col_agrup. Ese es el mapeo obtenido en train.
-      df |> filter(.data[[var_grupo]]==v) |>
-        mutate(Good=as.integer(as.character(Good))) |>
+      res <- df |> filter(.data[[var_grupo]] == v) |>
+        mutate(Good = as.integer(as.character(Good))) |>
         # Desactivo minpts porque ya se discretizó la variable.
         # El control debe ser externo
-        group_2_ivtab_factor(col, col_agrup, minpts = 0) -> res
+        group_2_ivtab_factor(col, col_agrup, minpts = 0)
       if (!res$error) {
         iv <- res |>
           pluck('tab') |>
-          mutate(newCutpoint = suppressWarnings(as.numeric(Cutpoint)),
+          dplyr::mutate(newCutpoint = suppressWarnings(as.numeric(Cutpoint)),
                  ok_new = if_else(!is.na(newCutpoint), TRUE, FALSE)) |>
-          mutate(Cutpoint = case_when(
+          dplyr::mutate(Cutpoint = case_when(
             ok_new & stringr::str_detect(groups, ',') ~ '_Otros',
             ok_new & (groups == "'NA'") ~ '_Missing',
             ok_new ~ groups,
@@ -1275,12 +1335,12 @@ iv_x_grupos <- function(df, tipo, col, col_agrup, woes_tab, woe_nulos, sentido,
           tab_fmt_fct() # Ordena por desc(col_agrup) que son los WoEs de Train.
         iv_tot <- iv_tot |>
           bind_cols(iv |> slice(-n()) |>
-                      summarise(IV=sum(IV, na.rm = T),
-                                TotRec=sum(CntRec), TotGood=sum(CntGood), TotBad=sum(CntBad),
-                                BadRate=100*TotBad/TotRec)) |>
-          bind_cols(iv |> summarise(bines=n()-1)) |>
+                      dplyr::summarise(IV = sum(IV, na.rm = TRUE),
+                                TotRec = sum(CntRec), TotGood = sum(CntGood), TotBad = sum(CntBad),
+                                BadRate = 100 * TotBad / TotRec)) |>
+          bind_cols(iv |> dplyr::summarise(bines = n() - 1)) |>
           bind_cols(iv |> iv_tab_porc_sorted(tipo_var = tipo,
-                                             q_gb_min = par_iv_cuantiles_gb_min, asc=T)) # al ordenar por desc(WoE) de Train, ordena por BadRate asc de Train
+                                             q_gb_min = par_iv_cuantiles_gb_min, asc = TRUE)) # al ordenar por desc(WoE) de Train, ordena por BadRate asc de Train
         if (detailed) iv_tot <- iv_tot |> mutate(iv_tab=list(iv))
       } else {
         res$error_detalle <- cli::format_error(c("Hubo un error en el calculo del IV x grupos",
@@ -1753,7 +1813,7 @@ cortes_a_sql <- function(x_var, x_var_gen, cortes) {
 # Excel Reports -----------------------------------------------------------
 
 skim_2_excel <- function(res, par_file_name=file_name) {
-  res |> skimr::partition() -> res_part
+  res_part <- res |> skimr::partition()
   options('openxlsx.numFmt' = '#,#0.00')
   Boldstyle <- openxlsx::createStyle(textDecoration = "bold")
   wb <- openxlsx::write.xlsx(x = res_part |> map(~ as_tibble(.x) |> rename(variable=skim_variable)),
@@ -1779,7 +1839,7 @@ skim_2_excel <- function(res, par_file_name=file_name) {
   wb |> openxlsx::writeData(x = paste('Variables con nulos adicionales:  ', paste(cols_nulos_adic, collapse = ", ")), sheet = 'Gral', startRow = 8)
   wb |> openxlsx::writeData(x = utils::capture.output(res |> summary()), sheet = 'Gral', startRow = 10)
   openxlsx::worksheetOrder(wb) <- openxlsx::worksheetOrder(wb) |> last2first()
-  wb |> openxlsx::saveWorkbook(par_file_name, overwrite = T, returnValue = T) -> res
+  res <- wb |> openxlsx::saveWorkbook(par_file_name, overwrite = TRUE, returnValue = TRUE)
   return(res)
 }
 
@@ -1811,7 +1871,7 @@ bt_rs_2_tab_bt_sum <- function(bt_rs, par_quantiles = c(0.025, 0.5, 0.975),
   tab_bt_sum %>%
     tidyr::pivot_wider(id_cols = c(!!!group_vars_exprs, score_niv, Alineado_B),
                        names_from = B_Cuantil, values_from = c(Tasa_Malos_B, KS_B)) -> tab_bt_sum
-  tab %>% inner_join(tab_bt_sum, by=join_by(!!!group_vars_exprs, score_niv)) -> res
+  res <- tab %>% inner_join(tab_bt_sum, by = join_by(!!!group_vars_exprs, score_niv))
   return(res)
 }
 
@@ -1883,7 +1943,7 @@ comp_2_scores_niv_gt <- function(bt_rs, group_vars) {
 tab_perf_resumen <- function(tab_perf) {
   c("Cuantil", "P.asc.Total", "P.asc.Malos", "P.asc.Buenos", "Score_Min", "Score_Max",
     "Total", "Malos", "P.Total", "Tasa_Malos_desc") %in% names(tab_perf) -> cond
-  assertthat::assert_that(all(cond)) -> res
+  res <- assertthat::assert_that(all(cond))
   tab_perf |>
     arrange(desc(Cuantil)) |>
     summarise(
@@ -1938,7 +1998,7 @@ res_x_grupos_2_gt <- function(res_x_grupos, title) {
                      x == "Gini" ~ "Índice Gini",
                      T ~ x) |> map(~ gt::html(.x))}) |>
     fmt_number(columns = !estad_fmt, decimals = 1,
-               drop_trailing_zeros = T, drop_trailing_dec_mark = T) |>
+               drop_trailing_zeros = TRUE, drop_trailing_dec_mark = TRUE) |>
     cols_label(estad_fmt = "Estadístico") |>
     opt_row_striping() |>
     tab_header(title = title)
@@ -1953,10 +2013,10 @@ res_x_grupos_2_gt <- function(res_x_grupos, title) {
 br_corte_peor_Xp <- function(P.asc.Total, Tasa_Malos_desc, Xporc=30) {
   tibble(P.asc.Total, Tasa_Malos_desc) -> tab
   tab |> arrange(desc(P.asc.Total)) |>
-    mutate(pat_sig = lead(P.asc.Total, default = 0)) |>
-    filter((pat_sig |> round()) >= Xporc) |>
-    summarise(malos_corte_peor_Xp = last(Tasa_Malos_desc)) -> res
-  res |> pull(malos_corte_peor_Xp)
+    dplyr::mutate(pat_sig = dplyr::lead(P.asc.Total, default = 0)) |>
+    dplyr::filter((pat_sig |> round()) >= Xporc) |>
+    dplyr::summarise(malos_corte_peor_Xp = dplyr::last(Tasa_Malos_desc))
+  res <- dplyr::pull(res, malos_corte_peor_Xp)
 }
 
 
@@ -1967,14 +2027,15 @@ tab_perf_2_auc <- function(tab_perf) {
   assertthat::assert_that(tab_perf |> is_tibble(), msg = "Para calcular el auc se necesita una tabla del tipo tibble!")
   assertthat::assert_that(c("Cuantil", "P.asc.Malos", "P.asc.Buenos") %in% (tab_perf |> names()) |> all(),
                           msg = "La tabla de performance para calcular el auc necesita las columnas Cuantil, P.asc.Malos, P.asc.Buenos")
-  tab_perf |> arrange(Cuantil) |>
-    select(P.asc.Malos, P.asc.Buenos) |>
-    rename(TPR=P.asc.Malos, FPR=P.asc.Buenos) -> tab
-  bind_rows(tibble(TPR=0, FPR=0), tab) |>
-    mutate(TPR=TPR/100, FPR=FPR/100) |>
-    mutate(dFPR=lead(FPR, default = 1) - FPR, dTPR=lead(TPR, default = 1) - TPR) |>
-    summarise(auc = sum(TPR * dFPR) + sum(dTPR * dFPR)/2) -> res
-  res |> pull(auc)
+  tab_perf |> dplyr::arrange(Cuantil) |>
+    dplyr::select(P.asc.Malos, P.asc.Buenos) |>
+    dplyr::rename(TPR = P.asc.Malos, FPR = P.asc.Buenos) -> tab
+  bind_rows(tibble(TPR = 0, FPR = 0), tab) |>
+    dplyr::mutate(TPR = TPR / 100, FPR = FPR / 100) |>
+    dplyr::mutate(dFPR = dplyr::lead(FPR, default = 1) - FPR, dTPR = dplyr::lead(TPR, default = 1) - TPR) |>
+    dplyr::summarise(auc = sum(TPR * dFPR) + sum(dTPR * dFPR) / 2) -> res
+  res <- dplyr::pull(res, auc)
+  res
 }
 
 # de https://www.r-bloggers.com/2016/11/calculating-auc-the-area-under-a-roc-curve/
@@ -1983,12 +2044,13 @@ tab_perf_2_auc <- function(tab_perf) {
 tab_perf_2_auc_cols <- function(Cuantil, TPR, FPR) {
   assertthat::assert_that(length(Cuantil) == length(TPR), length(Cuantil) == length(FPR))
   tibble(Cuantil, TPR, FPR) -> tab
-  tab |> arrange(Cuantil) |> select(TPR, FPR) -> tab
-  bind_rows(tibble(TPR=0, FPR=0), tab) |>
-    mutate(TPR=TPR/100, FPR=FPR/100) |>
-    mutate(dFPR=lead(FPR, default = 1) - FPR, dTPR=lead(TPR, default = 1) - TPR) |>
-    summarise(auc = sum(TPR * dFPR) + sum(dTPR * dFPR)/2) -> res
-  res |> pull(auc)
+  tab |> dplyr::arrange(Cuantil) |> dplyr::select(TPR, FPR) -> tab
+  bind_rows(tibble(TPR = 0, FPR = 0), tab) |>
+    dplyr::mutate(TPR = TPR / 100, FPR = FPR / 100) |>
+    dplyr::mutate(dFPR = dplyr::lead(FPR, default = 1) - FPR, dTPR = dplyr::lead(TPR, default = 1) - TPR) |>
+    dplyr::summarise(auc = sum(TPR * dFPR) + sum(dTPR * dFPR) / 2) -> res
+  res <- dplyr::pull(res, auc)
+  res
 }
 
 
@@ -2003,8 +2065,8 @@ plotROC_Pred1vs2y3 <- function(Pred1, Pred2, Pred3, per, main="ROC") {
   legend.colors[1] <- "black"
   legend.names[1] <- "trivial"
   # Pred1 results
-  pred <- Pred1 %>% filter(Periodo == per)
-  results <- HMeasure(pred$truth,pred$score)
+  pred <- Pred1 |> dplyr::filter(Periodo == per)
+  results <- hmeasure::HMeasure(pred$truth, pred$score)
   data <- attr(results, "data")
   data.now <- data[[1]]
   lines(1 - data.now$F0, 1 - data.now$F1, type = "l",
@@ -2015,8 +2077,8 @@ plotROC_Pred1vs2y3 <- function(Pred1, Pred2, Pred3, per, main="ROC") {
   legend.colors[2] <- "blue"
   legend.names[2] <- "LR Reaj"
   # Pred2 results
-  pred <- Pred2 %>% filter(Periodo == per)
-  results <- HMeasure(pred$truth,pred$score)
+  pred <- Pred2 |> dplyr::filter(Periodo == per)
+  results <- hmeasure::HMeasure(pred$truth, pred$score)
   data <- attr(results, "data")
   data.now <- data[[1]]
   lines(1 - data.now$F0, 1 - data.now$F1, type = "l",
@@ -2028,8 +2090,8 @@ plotROC_Pred1vs2y3 <- function(Pred1, Pred2, Pred3, per, main="ROC") {
   legend.names[3] <- "RF Reaj"
 
   # Hardcoded! LR Orig per=201408
-  pred <- Pred3 %>% filter(Periodo == per)
-  results <- HMeasure(pred$truth,pred$score)
+  pred <- Pred3 |> dplyr::filter(Periodo == per)
+  results <- hmeasure::HMeasure(pred$truth, pred$score)
   data <- attr(results, "data")
   data.now <- data[[1]]
   lines(1 - data.now$F0, 1 - data.now$F1, type = "l",
