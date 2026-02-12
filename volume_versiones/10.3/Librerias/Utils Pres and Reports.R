@@ -13,21 +13,21 @@
 # res <- medidasxPersyMods(Data, modelos, periodos)
 medidasxPeryMod <- function(data, modelo, train_per, periodo, valid=NA, msrs=measures) {
   if (is.na(valid)) {
-    data <- data |> dplyr::filter(Modelo == modelo, Periodo == periodo) |> 
-      dplyr::filter(!is.na(response)) |> dplyr::select(truth, prob.Bad, prob.Good, response) |> 
+    data <- data |> dplyr::filter(Modelo == modelo, Periodo == periodo) |>
+      dplyr::filter(!is.na(response)) |> dplyr::select(truth, prob.Bad, prob.Good, response) |>
       as.data.frame()
     Per_pred <- diff_months(train_per, periodo)
   }
   else if (valid==0) {
-    data <- data |> dplyr::filter(Modelo == modelo, Per_Pred == 0) |> 
-      dplyr::filter(!is.na(response)) |> dplyr::select(truth, prob.Bad, prob.Good, response) |> 
+    data <- data |> dplyr::filter(Modelo == modelo, Per_Pred == 0) |>
+      dplyr::filter(!is.na(response)) |> dplyr::select(truth, prob.Bad, prob.Good, response) |>
       as.data.frame()
     Per_pred <- 0
   }
   else {
     # asumo valid = 1
-    data <- data |> dplyr::filter(Modelo == modelo, Per_Pred == 0.5) |> 
-      dplyr::filter(!is.na(response)) |> dplyr::select(truth, prob.Bad, prob.Good, response) |> 
+    data <- data |> dplyr::filter(Modelo == modelo, Per_Pred == 0.5) |>
+      dplyr::filter(!is.na(response)) |> dplyr::select(truth, prob.Bad, prob.Good, response) |>
       as.data.frame()
     Per_pred <- 0.5
   }
