@@ -5,7 +5,7 @@ if (!interactive()) options(device = function(...) grDevices::png(...))
 if (!exists("bsm_logger") || !inherits(bsm_logger, "BsmLogger")) {
   source(fs::path(bsm_path, "Librerias/Funciones logging.R"), local = FALSE)
 }
-  
+
 # Libraries
 # # Paquetes
 suppressMessages({
@@ -144,3 +144,5 @@ log_info("Parámetros cargados exitosamente")
 log_debug(glue::glue("project_title: {project_title}, project_version: {project_version}"))
 log_debug(glue::glue("data_source_type: {data_source_type}, par_split: {par_split}"))
 
+# Initialise chunk-level progress tracking (safe no-op outside knitr)
+setup_chunk_tracking()

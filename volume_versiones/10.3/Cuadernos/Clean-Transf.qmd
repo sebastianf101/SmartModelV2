@@ -340,11 +340,15 @@ si el Information Value, IV, de la variable discretizada es mayor a  **`r par_iv
 tab = list()
 dis <- idx <- 1
 
-for (col in pred.cont) {
+n_pred_cont <- length(pred.cont)
+for (i_cont in seq_along(pred.cont)) {
+  col <- pred.cont[i_cont]
   generada <- 0
   msg <- ""
   message("Discretizando variable ", col)
   res <- bin_monot(train,y="Good",x=col, nbins1=par_nbins1, minpts1=par_minpts1, nbins2=par_nbins2, minpts2=par_minpts2, minptsnulos=par_minpts_nulos, rampa=par_discret) # Discretizo por rampas, usando 0 se discretiza por escalera
+  write_progress_json(task = "Binning_Cont", task_progress = i_cont / n_pred_cont,
+                      task_detail = paste("Variable", i_cont, "of", n_pred_cont))
   tab[[idx]] <- c(var=col, var_gen=paste0(col,"_g"), generada=generada, msg=msg, rampa=par_discret, res)
   if (res$error)
     message("Variable ", col, " descartada por error. ", res$error_detalle)
@@ -407,10 +411,14 @@ De `r length(pred.cont)` variables continuas, `r dis` se incorporaron al conjunt
 ```{r Binning_Fact, collapse=TRUE}
 tab = list()
 dis <- idx <- 1
-for (col in (pred.fac)) {
+n_pred_fac <- length(pred.fac)
+for (i_fac in seq_along(pred.fac)) {
+  col <- pred.fac[i_fac]
   generada <- 0
   msg <- ""
   res <- bin_factor(train, col, minpts=par_minpts_cat, Good="Good", maxlevels=par_maxlevels)
+  write_progress_json(task = "Binning_Fact", task_progress = i_fac / n_pred_fac,
+                      task_detail = paste("Variable", i_fac, "of", n_pred_fac))
   tab[[idx]] <- c(var=col, var_gen=paste0(col,"_g"), generada=generada, msg=msg, res)
   if (res$error)
     log_warn("Variable {col} descartada por error. {res$error_detalle}")
