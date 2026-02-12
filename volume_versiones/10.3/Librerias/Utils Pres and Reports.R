@@ -2012,11 +2012,12 @@ res_x_grupos_2_gt <- function(res_x_grupos, title) {
 #             br_corte_peor_30 = br_corte_peor_Xp(P.asc.Total, Tasa_Malos_desc, Xporc=30))
 br_corte_peor_Xp <- function(P.asc.Total, Tasa_Malos_desc, Xporc=30) {
   tibble(P.asc.Total, Tasa_Malos_desc) -> tab
-  tab |> arrange(desc(P.asc.Total)) |>
+  res <- tab |> arrange(desc(P.asc.Total)) |>
     dplyr::mutate(pat_sig = dplyr::lead(P.asc.Total, default = 0)) |>
     dplyr::filter((pat_sig |> round()) >= Xporc) |>
-    dplyr::summarise(malos_corte_peor_Xp = dplyr::last(Tasa_Malos_desc))
-  res <- dplyr::pull(res, malos_corte_peor_Xp)
+    dplyr::summarise(malos_corte_peor_Xp = dplyr::last(Tasa_Malos_desc)) |>
+    dplyr::pull(malos_corte_peor_Xp)
+  res
 }
 
 
