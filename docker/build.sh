@@ -48,12 +48,6 @@ docker build -t bsm-studio -f docker/Dockerfile.config --progress=plain \
     --build-arg BSM_DIR="${BSM_DIR:-/home/user/Documents/besmart/10.3}" \
     . #--no-cache
 echo "Fin de construcción de imagen bsm-studio"
-echo "Inicio subida a docker Hub de imagen sebastianf101/bsm-studio:$IMAGE_VERSION"
-echo $DOCKER_PWD | docker login -u "sebastianf101" --password-stdin docker.io
-docker tag bsm-studio sebastianf101/bsm-studio:$IMAGE_VERSION
-docker push sebastianf101/bsm-studio:$IMAGE_VERSION
-docker logout docker.io
-echo "Fin subida a docker Hub"
 echo "Inicio subida a GitHub Container Registry de imagen ghcr.io/sferro-besmart/smartmodelv2:$IMAGE_VERSION"
 echo $GHCR_PUSH_PWD | docker login -u sferro-besmart --password-stdin ghcr.io
 docker tag bsm-studio ghcr.io/sferro-besmart/smartmodelv2:$IMAGE_VERSION

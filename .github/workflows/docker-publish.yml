@@ -12,8 +12,8 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ghcr.io/sferro-besmart/smartmodelv2
-  REPO_SOURCE_URL: https://github.com/sferro-besmart/SmartModelV2
+  IMAGE_NAME: ghcr.io/SmartModelling/smartmodelv2
+  REPO_SOURCE_URL: https://github.com/SmartModelling/SmartModelV2
   BASE_IMAGE_REPO: ghcr.io/sferro-besmart/my-rstudio
   BASE_GITHUB_REPO: sferro-besmart/my-rstudio
 
@@ -96,7 +96,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: docker/Dockerfile.studio
+          file: docker/Dockerfile.config
           build-args: |
             BASE_IMAGE_REPO=${{ env.BASE_IMAGE_REPO }}
             BASE_IMAGE_VERSION=${{ env.BASE_IMAGE_VERSION }}

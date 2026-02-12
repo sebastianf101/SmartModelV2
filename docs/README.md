@@ -32,5 +32,30 @@ Compose carga variables desde `../.env` (ver `.devcontainer/docker-compose.dev.y
 
   `ln -s /tmp/sm-logs-Mi_SM sm-logs-Mi_SM`
 
-- El enlace está añadido a `.gitignore` para evitar que se versionen logs y **no debe** ser committeado. Para eliminarlo: `rm sm-logs-Mi_SM`.
+- El enlace está añadido a `.gitignore` para evitar que se versionen logs y **no debe** ser committeado. Para eliminarlo: `rm sm-logs-Mi_SM`
+
+## Publishing releases 🔧
+
+This repository publishes container images to GitHub Container Registry.
+
+Defaults:
+- Image: `ghcr.io/SmartModelling/smartmodelv2`
+- Dockerfile: `docker/Dockerfile.config`
+- Tag format: `vMAJOR.MINOR.PATCH` (also pushed as `latest`)
+
+Required environment variables (local runs):
+- `GHCR_PAT` — Personal Access Token with `packages:write` (and `repo` scope if you want to create releases)
+- `GHCR_USER` — (optional) your GitHub username for `docker login`
+
+In CI (GitHub Actions) the script prefers `GITHUB_TOKEN` for GitHub API actions.
+
+Quick examples:
+- Dry run: `./docker/release-publish.sh --version 1.2.3 --dry-run`
+- Build + push + release: `GHCR_PAT=xxx ./docker/release-publish.sh --version 1.2.3`
+- Bump patch and publish: `GHCR_PAT=xxx ./docker/release-publish.sh --bump patch`
+
+Verification:
+- `docker images | grep smartmodelv2`
+- `git tag -l 'v*'`
+- Check Releases and Packages in `https://github.com/SmartModelling/SmartModelV2`
 
