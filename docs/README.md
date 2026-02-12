@@ -25,3 +25,12 @@ Esta configuración del Dev Container busca reflejar el contenedor de producció
 #### Variables de entorno
 
 Compose carga variables desde `../.env` (ver `.devcontainer/docker-compose.dev.yml`). Para cambiar puertos o defaults, editar ese archivo y reconstruir el contenedor.
+
+### Logs locales 🔍
+
+- Para inspeccionar logs localmente sin abrir un workspace multi-root, puede crearse un enlace simbólico en la raíz del repositorio:
+
+  `ln -s /tmp/sm-logs-Mi_SM sm-logs-Mi_SM`
+
+- El enlace está añadido a `.gitignore` para evitar que se versionen logs y **no debe** ser committeado. Para eliminarlo: `rm sm-logs-Mi_SM`.
+
