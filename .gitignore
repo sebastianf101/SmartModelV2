@@ -22,3 +22,7 @@ Rplots.pdf
 # Special cases
 volume_versiones/10.3/Reportes/Scores.txt
 volume_versiones/10.3/Reportes/Características de variables.xlsx
+
+# Local symlink to logs
+sm-logs-Mi_SM
+
