@@ -1568,9 +1568,51 @@ write_progress_json <- function(task = NULL, task_progress = NULL, task_detail =
     remaining <- -1
   }
 
+  # If we've reached (or exceeded) the final chunk, force final values exactly
+  if (!is.null(bsm_progress$total_chunks) && bsm_progress$total_chunks > 0 &&
+      bsm_progress$chunk_counter >= bsm_progress$total_chunks) {
+    overall <- 1.0
+    remaining <- 0
+  }
+
+  # Resolve notebook name: prefer bsm_logger$current_notebook, then knitr::current_input(),
+  # fallback to workspace folder name when not knitting.  Normalize common intermediate
+  # extensions (e.g. ".rmarkdown") back to the original source when possible.
+  nb_name <- bsm_logger$current_notebook
+  if (is.null(nb_name) || nb_name == "-") {
+    nb_try <- tryCatch(
+      if (isTRUE(getOption("knitr.in.progress"))) knitr::current_input() else NA_character_,
+      error = function(e) NA_character_
+    )
+    if (!is.na(nb_try) && nzchar(nb_try)) {
+      nb_name <- nb_try
+    } else {
+      nb_name <- basename(getwd())
+    }
+  }
+
+  # Normalize intermediate/quarto-produced names back to likely source file names.
+  # Prefer an actual file in Cuadernos/ with .qmd or .Rmd extension; otherwise, if the
+  # name ends with ".rmarkdown" replace the suffix with ".qmd" for readability.
+  try({
+    base_name <- tools::file_path_sans_ext(basename(nb_name))
+    candidates <- c(paste0(base_name, ".qmd"), paste0(base_name, ".Rmd"))
+    found <- NULL
+    for (c in candidates) {
+      if (fs::file_exists(fs::path(bsm_path, "Cuadernos", c))) { found <- c; break }
+    }
+    if (!is.null(found)) {
+      nb_name <- found
+    } else if (grepl("\\.rmarkdown$", nb_name)) {
+      # Best-effort: show .qmd instead of .rmarkdown
+      nb_name <- paste0(base_name, ".qmd")
+    }
+  }, silent = TRUE)
+
+
   progress_data <- list(
     session_id     = log_get_session_id(),
-    notebook       = bsm_logger$current_notebook %||% "-",
+    notebook       = nb_name,
     chunk_current  = bsm_progress$chunk_counter,
     chunk_total    = bsm_progress$total_chunks,
     chunk_label    = bsm_progress$current_label,
