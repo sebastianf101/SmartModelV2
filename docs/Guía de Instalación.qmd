@@ -44,7 +44,7 @@ De forma alternativa, si se cuenta con el PAT en la variable de entorno `GHCR_PA
   docker pull ghcr.io/sferro-besmart/smartmodelv2:v10.3.0
   docker logout ghcr.io
   docker tag ghcr.io/sferro-besmart/smartmodelv2:v10.3.0 bsm-studio
-  ```
+> Note: building and publishing should use `docker/release-publish.sh`. The legacy `docker/build.sh` is deprecated and will be removed in a future release.  ```
 
 Modificar la versión `10.3.0` a la última disponible.
 

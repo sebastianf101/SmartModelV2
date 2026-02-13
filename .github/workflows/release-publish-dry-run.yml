@@ -1,0 +1,26 @@
+name: release-publish — dry-run
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  release-publish-dry-run:
+    name: release-publish (dry-run)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up environment
+        run: |
+          chmod +x docker/release-publish.sh
+
+      - name: Run release-publish.sh (dry-run)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ./docker/release-publish.sh --version 0.0.0 --dry-run

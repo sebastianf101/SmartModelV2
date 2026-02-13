@@ -54,6 +54,19 @@ Quick examples:
 - Build + push + release: `GHCR_PAT=xxx ./docker/release-publish.sh --version 1.2.3`
 - Bump patch and publish: `GHCR_PAT=xxx ./docker/release-publish.sh --bump patch`
 
+New behavior:
+- By default, if a Git remote named `org_upstream` exists the script will also push the created git tag to that remote (use `--no-upstream` to opt out).
+- Recommended remotes: `origin` (your fork) and `org_upstream` (organization remote). To migrate:
+
+  ```bash
+  git remote set-url origin <UPSTREAM-URL>
+  git remote remove upstream
+  git remote -v
+  ```
+
+Deprecation:
+- `docker/build.sh` is deprecated — use `docker/release-publish.sh` for builds and publishing. The old script will be removed in a follow-up PR.
+
 Verification:
 - `docker images | grep smartmodelv2`
 - `git tag -l 'v*'`

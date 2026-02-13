@@ -30,6 +30,7 @@ Options:
   --dockerfile PATH    Dockerfile to build (default: $DOCKERFILE_DEFAULT)
   --repo OWNER/NAME    Repo (default: $REPO_DEFAULT)
   --dry-run            Print actions without executing
+  --no-upstream        Do not push git tag/release to remote named 'org_upstream'
   -h, --help           Show this help
 EOF
   exit 0
@@ -54,6 +55,7 @@ DO_RELEASE=true
 DOCKERFILE="$DOCKERFILE_DEFAULT"
 REPO="$REPO_DEFAULT"
 DRY_RUN=false
+NO_UPSTREAM=false
 VERSION=""
 BUMP=""
 
@@ -66,6 +68,7 @@ while [[ $# -gt 0 ]]; do
     --dockerfile) DOCKERFILE="$2"; shift 2 ;;
     --repo) REPO="$2"; shift 2 ;;
     --dry-run) DRY_RUN=true; shift ;;
+    --no-upstream) NO_UPSTREAM=true; shift ;;
     -h|--help) usage ;;
     *) err "Unknown arg: $1" ;;
   esac
@@ -137,6 +140,18 @@ info "Creating git tag $TAG"
 run "git tag -a '$TAG' -m 'Release $TAG'"
 info "Pushing tag to remote $REMOTE"
 run "git push '$REMOTE' '$TAG'"
+
+# If an org_upstream remote exists, also push the tag there unless explicitly skipped
+if [ "$NO_UPSTREAM" != true ]; then
+  if git remote get-url org_upstream >/dev/null 2>&1; then
+    info "org_upstream remote found — pushing tag to org_upstream"
+    run "git push org_upstream '$TAG'"
+  else
+    info "No 'org_upstream' remote configured — skipping org push"
+  fi
+else
+  info "--no-upstream specified — skipping push to org_upstream"
+fi
 
 if [ "$DO_RELEASE" = true ]; then
   GH_API_TOKEN="${GITHUB_TOKEN:-$GHCR_PAT}"

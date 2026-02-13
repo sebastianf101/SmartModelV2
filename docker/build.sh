@@ -1,4 +1,6 @@
 #! /bin/bash
+# DEPRECATED: use `docker/release-publish.sh` instead. This script will be removed in a future release.
+# (Kept temporarily for backward compatibility.)
 # Bash script para construir imagen desde cero y salvarla
 # Setear antes las env vars con los paswords!
 # Para detenerse al mínimo error.
