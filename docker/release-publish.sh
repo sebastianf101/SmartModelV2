@@ -1,16 +1,15 @@
 #!/usr/bin/env bash
-# Consolidated release + publish script (image-only, no jq)
-# Defaults: ghcr.io / SmartModelling / smartmodelv2
 set -euo pipefail
 
 REPO_DEFAULT="SmartModelling/SmartModelV2"
-REGISTRY_DEFAULT="ghcr.io"
-OWNER_DEFAULT="smartmodelling"
-IMAGE_DEFAULT="smartmodelv2"
+REGISTRY="ghcr.io"
+OWNER="smartmodelling"
+IMAGE_NAME="smartmodelv2"
 DOCKERFILE_DEFAULT="docker/Dockerfile.config"
-REMOTE_DEFAULT="origin"
+REMOTE="origin"
+UPSTREAM="org_upstream"
 
-# Resolve repository root so script can be run from any cwd
+# Resolve repo root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
@@ -28,9 +27,9 @@ Options:
   --no-push            Don't push Docker image to registry
   --no-release         Don't create GitHub Release (skip API call)
   --dockerfile PATH    Dockerfile to build (default: $DOCKERFILE_DEFAULT)
-  --repo OWNER/NAME    Repo (default: $REPO_DEFAULT)
+  --remote NAME        Primary git remote (default: origin)
+  --upstream NAME      Secondary git remote (default: org_upstream)
   --dry-run            Print actions without executing
-  --no-upstream        Do not push git tag/release to remote named 'org_upstream'
   -h, --help           Show this help
 EOF
   exit 0
@@ -55,7 +54,6 @@ DO_RELEASE=true
 DOCKERFILE="$DOCKERFILE_DEFAULT"
 REPO="$REPO_DEFAULT"
 DRY_RUN=false
-NO_UPSTREAM=false
 VERSION=""
 BUMP=""
 
@@ -66,9 +64,9 @@ while [[ $# -gt 0 ]]; do
     --no-push) DO_PUSH=false; shift ;;
     --no-release) DO_RELEASE=false; shift ;;
     --dockerfile) DOCKERFILE="$2"; shift 2 ;;
-    --repo) REPO="$2"; shift 2 ;;
+    --remote) REMOTE="$2"; shift 2 ;;
+    --upstream) UPSTREAM="$2"; shift 2 ;;
     --dry-run) DRY_RUN=true; shift ;;
-    --no-upstream) NO_UPSTREAM=true; shift ;;
     -h|--help) usage ;;
     *) err "Unknown arg: $1" ;;
   esac
@@ -77,7 +75,6 @@ done
 GITHUB_TOKEN="${GITHUB_TOKEN:-}"
 GHCR_PAT="${GHCR_PAT:-}"
 GHCR_USER="${GHCR_USER:-}"
-REMOTE="${REMOTE:-$REMOTE_DEFAULT}"
 
 get_latest_tag() { git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0"; }
 
@@ -93,9 +90,9 @@ if ! is_semver "v$VERSION"; then err "Invalid semver: $VERSION"; fi
 TAG="v$VERSION"
 IMAGE_TAG="$TAG"
 
-REGISTRY="${REGISTRY:-$REGISTRY_DEFAULT}"
-OWNER="${OWNER:-$OWNER_DEFAULT}"
-IMAGE_NAME="${IMAGE_NAME:-$IMAGE_DEFAULT}"
+REGISTRY="${REGISTRY:-ghcr.io}"
+OWNER="${OWNER:-smartmodelling}"
+IMAGE_NAME="${IMAGE_NAME:-smartmodelv2}"
 FULL_IMAGE="${REGISTRY}/${OWNER}/${IMAGE_NAME}:${IMAGE_TAG}"
 LATEST_IMAGE="${REGISTRY}/${OWNER}/${IMAGE_NAME}:latest"
 
@@ -114,7 +111,6 @@ info "Preparing release $TAG -> $FULL_IMAGE"
 info "Dockerfile: $DOCKERFILE"
 info "Project root: $PROJECT_ROOT"
 
-# build using repository root as the context so script works from any cwd
 run "docker build -f '$PROJECT_ROOT/$DOCKERFILE' -t '$FULL_IMAGE' '$PROJECT_ROOT'"
 run "docker tag '$FULL_IMAGE' '$LATEST_IMAGE'"
 
@@ -138,47 +134,55 @@ fi
 
 info "Creating git tag $TAG"
 run "git tag -a '$TAG' -m 'Release $TAG'"
-info "Pushing tag to remote $REMOTE"
+
+# push tag to both configured remotes (primary then upstream)
+info "Pushing tag to remote '$REMOTE'"
 run "git push '$REMOTE' '$TAG'"
 
-# If an org_upstream remote exists, also push the tag there unless explicitly skipped
-if [ "$NO_UPSTREAM" != true ]; then
-  if git remote get-url org_upstream >/dev/null 2>&1; then
-    info "org_upstream remote found — pushing tag to org_upstream"
-    run "git push org_upstream '$TAG'"
-  else
-    info "No 'org_upstream' remote configured — skipping org push"
-  fi
+if git remote get-url "$UPSTREAM" >/dev/null 2>&1; then
+  info "Pushing tag to upstream remote '$UPSTREAM'"
+  run "git push '$UPSTREAM' '$TAG'"
 else
-  info "--no-upstream specified — skipping push to org_upstream"
+  info "Upstream remote '$UPSTREAM' not configured — skipping upstream push"
 fi
 
 if [ "$DO_RELEASE" = true ]; then
   GH_API_TOKEN="${GITHUB_TOKEN:-$GHCR_PAT}"
   if [ -z "$GH_API_TOKEN" ]; then err "No token for GitHub API available (set GITHUB_TOKEN or GHCR_PAT)."; fi
 
-  if git remote get-url "$REMOTE" >/dev/null 2>&1; then
-    remote_url=$(git remote get-url "$REMOTE")
-    if [[ "$remote_url" =~ github.com[:/]+([^/]+/[^/.]+) ]]; then
-      REPO="${BASH_REMATCH[1]}"
+  repos_to_release=()
+  for r in "$REMOTE" "$UPSTREAM"; do
+    if git remote get-url "$r" >/dev/null 2>&1; then
+      remote_url=$(git remote get-url "$r")
+      if [[ "$remote_url" =~ github.com[:/]+([^/]+/[^/.]+) ]]; then
+        repos_to_release+=("${BASH_REMATCH[1]}")
+      fi
     fi
+  done
+
+  # dedupe and fallback
+  IFS=$'\n' unique_repos=($(printf "%s\n" "${repos_to_release[@]}" | awk '!seen[$0]++'))
+  if [ ${#unique_repos[@]} -eq 0 ]; then
+    unique_repos=("$REPO_DEFAULT")
   fi
 
-  info "Creating GitHub Release for $REPO $TAG"
   read -r -d '' post_data <<EOF || true
 {"tag_name":"$TAG","name":"$TAG","body":"Release $TAG","draft":false,"prerelease":false}
 EOF
 
-  if [ "$DRY_RUN" = true ]; then
-    printf "DRY RUN: would POST release for %s with payload:\n%s\n" "$REPO" "$post_data"
-  else
-    curl -sS -X POST \
-      -H "Authorization: token $GH_API_TOKEN" \
-      -H "Accept: application/vnd.github+json" \
-      "https://api.github.com/repos/$REPO/releases" \
-      -d "$post_data" \
-      | sed -n '1p'
-  fi
+  for target_repo in "${unique_repos[@]}"; do
+    info "Creating GitHub Release for ${target_repo} $TAG"
+    if [ "$DRY_RUN" = true ]; then
+      printf "DRY RUN: would POST release for %s with payload:\n%s\n" "$target_repo" "$post_data"
+    else
+      curl -sS -X POST \
+        -H "Authorization: token $GH_API_TOKEN" \
+        -H "Accept: application/vnd.github+json" \
+        "https://api.github.com/repos/${target_repo}/releases" \
+        -d "$post_data" \
+        | sed -n '1p'
+    fi
+  done
 else
   info "--no-release specified — skipping GitHub Release creation"
 fi
