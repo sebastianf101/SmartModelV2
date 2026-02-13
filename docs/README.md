@@ -51,6 +51,7 @@ In CI (GitHub Actions) the script prefers `GITHUB_TOKEN` for GitHub API actions.
 
 Quick examples:
 - Dry run: `./docker/release-publish.sh --version 1.2.3 --dry-run`
+- Overwrite existing release/tag: `GHCR_PAT=xxx GITHUB_TOKEN=xxx ./docker/release-publish.sh --version 1.2.3 --force --no-push` (use with care)
 - Build + push + release: `GHCR_PAT=xxx ./docker/release-publish.sh --version 1.2.3`
 - Bump patch and publish: `GHCR_PAT=xxx ./docker/release-publish.sh --bump patch`
 

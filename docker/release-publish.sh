@@ -30,6 +30,7 @@ Options:
   --remote NAME        Primary git remote (default: origin)
   --upstream NAME      Secondary git remote (default: org_upstream)
   --dry-run            Print actions without executing
+  --force              Delete existing tag/release and recreate (use with caution)
   -h, --help           Show this help
 EOF
   exit 0
@@ -54,6 +55,7 @@ DO_RELEASE=true
 DOCKERFILE="$DOCKERFILE_DEFAULT"
 REPO="$REPO_DEFAULT"
 DRY_RUN=false
+FORCE=false
 VERSION=""
 BUMP=""
 
@@ -67,6 +69,7 @@ while [[ $# -gt 0 ]]; do
     --remote) REMOTE="$2"; shift 2 ;;
     --upstream) UPSTREAM="$2"; shift 2 ;;
     --dry-run) DRY_RUN=true; shift ;;
+    --force) FORCE=true; shift ;;
     -h|--help) usage ;;
     *) err "Unknown arg: $1" ;;
   esac
@@ -105,7 +108,20 @@ run() {
 }
 
 if [ "$(git status --porcelain)" != "" ]; then err "Working directory not clean. Commit or stash changes."; fi
-if git rev-parse "$TAG" >/dev/null 2>&1; then err "Tag $TAG already exists."; fi
+if git rev-parse "$TAG" >/dev/null 2>&1; then
+  if [ "$FORCE" = true ]; then
+    info "Tag $TAG exists — --force specified: removing existing tag locally and on remotes"
+    run "git tag -d '$TAG' || true"
+    info "Deleting tag $TAG from remote '$REMOTE'"
+    run "git push '$REMOTE' --delete '$TAG' || true"
+    if git remote get-url "$UPSTREAM" >/dev/null 2>&1; then
+      info "Deleting tag $TAG from upstream remote '$UPSTREAM'"
+      run "git push '$UPSTREAM' --delete '$TAG' || true"
+    fi
+  else
+    err "Tag $TAG already exists. Use --force to replace it."
+  fi
+fi
 
 info "Preparing release $TAG -> $FULL_IMAGE"
 info "Dockerfile: $DOCKERFILE"
@@ -171,6 +187,19 @@ if [ "$DO_RELEASE" = true ]; then
 EOF
 
   for target_repo in "${unique_repos[@]}"; do
+    if [ "$FORCE" = true ]; then
+      info "--force: checking for existing GitHub Release for ${target_repo} $TAG and deleting if present"
+      if [ "$DRY_RUN" = true ]; then
+        printf "DRY RUN: would delete existing GitHub Release for %s %s\n" "$target_repo" "$TAG"
+      else
+        release_json=$(curl -sS -H "Authorization: token $GH_API_TOKEN" "https://api.github.com/repos/${target_repo}/releases/tags/${TAG}" || true)
+        release_id=$(printf '%s' "$release_json" | sed -n 's/.*"id":[[:space:]]*\([0-9][0-9]*\).*/\1/p' | head -n1 || true)
+        if [ -n "$release_id" ]; then
+          info "Deleting GitHub release id $release_id for ${target_repo} $TAG"
+          curl -sS -X DELETE -H "Authorization: token $GH_API_TOKEN" "https://api.github.com/repos/${target_repo}/releases/${release_id}" || true
+        fi
+      fi
+    fi
     info "Creating GitHub Release for ${target_repo} $TAG"
     if [ "$DRY_RUN" = true ]; then
       printf "DRY RUN: would POST release for %s with payload:\n%s\n" "$target_repo" "$post_data"
